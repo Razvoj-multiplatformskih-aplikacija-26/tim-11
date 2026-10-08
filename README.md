@@ -1,10 +1,8 @@
 # Rent a Luxury
 
 ## Članovi tima
-| Ime i prezime | Broj indeksa 
-| --- | --- | --- |
-| Ana Nikolić | 135/24si 
-| Balša Raičević | 123/24si
+Ana Nikolić - 135/24si 
+Balša Raičević - 123/24si
 
 ## Opis sistema
 
