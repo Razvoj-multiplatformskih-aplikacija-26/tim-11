@@ -6,6 +6,7 @@ version: 1.0.0+1
 
 environment:
   sdk: ^3.13.5
+resolution: workspace
 
 dependencies:
   flutter:
@@ -32,6 +33,7 @@ flutter:
         - asset: assets/fonts/Lato-Regular.ttf
         - asset: assets/fonts/Lato-Bold.ttf
           weight: 700
+
 flutter_launcher_icons:
   android: true
   ios: true

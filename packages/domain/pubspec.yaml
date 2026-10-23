@@ -1,0 +1,14 @@
+name: domain
+description: Domen Rent a Luxury - modeli, statusi i pravila, bez Fluttera.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.13.0
+resolution: workspace
+
+dependencies:
+  meta: ^1.17.0
+
+dev_dependencies:
+  test: ^1.30.0
