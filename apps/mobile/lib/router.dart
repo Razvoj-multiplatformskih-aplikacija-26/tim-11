@@ -1,3 +1,4 @@
+import 'package:domain/domain.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'screens/katalog_screen.dart';
@@ -26,15 +27,13 @@ final router = GoRouter(
                 path: 'predmet/:id',
                 parentNavigatorKey: rootNavigatorKey,
                 builder: (context, state) =>
-                    PredmetDetaljScreen(id: state.pathParameters['id']!),
-                routes: [
+                  PredmetDetaljScreen(id: PredmetId(state.pathParameters['id']!)),                routes: [
                   // /predmet/p-1/zahtev
                   GoRoute(
                     path: 'zahtev',
                     parentNavigatorKey: rootNavigatorKey,
                     builder: (context, state) => ZahtevFormaScreen(
-                      predmetId: state.pathParameters['id']!,
-                    ),
+                      predmetId: PredmetId(state.pathParameters['id']!),                    ),
                   ),
                 ],
               ),
@@ -51,8 +50,7 @@ final router = GoRouter(
                 path: ':id',
                 parentNavigatorKey: rootNavigatorKey,
                 builder: (context, state) =>
-                    ZakupDetaljScreen(id: state.pathParameters['id']!),
-              ),
+                    ZakupDetaljScreen(id: ZakupId(state.pathParameters['id']!))              ),
             ],
           ),
         ]),

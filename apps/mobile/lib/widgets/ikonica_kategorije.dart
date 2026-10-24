@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/predmet.dart';
+import 'package:domain/domain.dart';
+
 
 IconData ikonicaKategorije(Kategorija kategorija) => switch (kategorija) {
       Kategorija.torba => Icons.shopping_bag_outlined,

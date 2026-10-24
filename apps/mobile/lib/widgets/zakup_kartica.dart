@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../models/zakup.dart';
+import 'package:domain/domain.dart';
 import 'slika_predmeta.dart';
 import 'status_oznaka.dart';
 

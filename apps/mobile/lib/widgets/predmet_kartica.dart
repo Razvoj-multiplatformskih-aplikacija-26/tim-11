@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/predmet.dart';
+import 'package:domain/domain.dart';
 import 'slika_predmeta.dart';
 
 /// Kartica predmeta u katalogu: slika, brend, naziv i cena po danu

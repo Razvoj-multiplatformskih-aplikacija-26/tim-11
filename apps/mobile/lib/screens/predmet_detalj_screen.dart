@@ -1,12 +1,14 @@
+import 'package:domain/domain.dart';
 import 'package:flutter/material.dart';
-import '../data/lazni_podaci.dart';
-import '../widgets/slika_predmeta.dart';
 import 'package:go_router/go_router.dart';
+import '../data/lazni_podaci.dart';
+import '../text/nazivi.dart';
+import '../widgets/slika_predmeta.dart';
 
 /// Detalj predmeta iz kataloga
 class PredmetDetaljScreen extends StatelessWidget {
   const PredmetDetaljScreen({super.key, required this.id});
-  final String id;
+  final PredmetId id;
 
   @override
   Widget build(BuildContext context) {

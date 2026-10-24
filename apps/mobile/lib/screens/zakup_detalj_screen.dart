@@ -1,8 +1,9 @@
+import 'package:domain/domain.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../data/zakupi_store.dart';
-import '../models/status_zakupa.dart';
-import '../models/zakup.dart';
+import '../text/poruke_gresaka.dart';
 import '../widgets/slika_predmeta.dart';
 import '../widgets/status_oznaka.dart';
 import '../widgets/timeline_zakupa.dart';
@@ -13,7 +14,7 @@ final _datum = DateFormat('d. M. yyyy.');
 class ZakupDetaljScreen extends StatelessWidget {
   const ZakupDetaljScreen({super.key, required this.id});
 
-  final String id;
+  final ZakupId id;
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +44,10 @@ class _Sadrzaj extends StatelessWidget {
   Widget build(BuildContext context) {
     final predmet = zakup.predmet;
     final tekst = Theme.of(context).textTheme;
+
+    // Ekran ne odlučuje sam: pita domen da li je radnja sada dozvoljena.
+    final mozeDaPlati = platiZakup(zakup).jeUspeh;
+    final mozeDaOtkaze = otkaziZakup(zakup, sada: DateTime.now()).jeUspeh;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Detalj zakupa')),
@@ -74,19 +79,26 @@ class _Sadrzaj extends StatelessWidget {
           _Red('Ukupno', '${zakup.ukupnaCena} €'),
           _Red('Depozit', '${predmet.depozit} €'),
           _Red('Vlasnik', predmet.vlasnik),
+
+          // Podaci koje nosi sam status (sealed klasa iz domena)
+          if (zakup.status case Odbijen(:final razlog)) _Red('Razlog odbijanja', razlog),
+          if (zakup.status case Otkazan(:final besplatno))
+            _Red('Otkazivanje', besplatno ? 'besplatno' : 'uz naknadu'),
+          if (zakup.status case Sporan(:final opis)) _Red('Opis problema', opis),
+
           const SizedBox(height: 24),
           Text('Tok zakupa', style: tekst.titleMedium),
           const SizedBox(height: 12),
           TimelineZakupa(zakup: zakup),
 
-          // Akcije: prikazuju se samo kad su dozvoljene u trenutnom stanju
-          if (zakup.status == StatusZakupa.odobren)
+          // Akcije: prikazuju se samo kad ih pravila iz domena dozvoljavaju
+          if (mozeDaPlati)
             FilledButton.icon(
               onPressed: () => _plati(context),
               icon: const Icon(Icons.payment),
               label: const Text('Plati'),
             ),
-          if (zakup.status.mozeDaSeOtkaze) ...[
+          if (mozeDaOtkaze) ...[
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: () => _otkazi(context),
@@ -99,7 +111,7 @@ class _Sadrzaj extends StatelessWidget {
     );
   }
 
-    Future<void> _plati(BuildContext context) async {
+  Future<void> _plati(BuildContext context) async {
     final potvrdjeno = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog.adaptive(
@@ -107,7 +119,7 @@ class _Sadrzaj extends StatelessWidget {
         content: Text(
           'Biće naplaćeno ${zakup.ukupnaCena} € za zakup i '
           '${zakup.predmet.depozit} € depozita, koji se vraća '
-          'kad predmet bude vraćen neoštećen. Za sada su ta sredstva rezervisana',
+          'kad predmet bude vraćen neoštećen. Za sada su ta sredstva rezervisana.',
         ),
         actions: [
           TextButton(
@@ -123,14 +135,11 @@ class _Sadrzaj extends StatelessWidget {
     );
 
     if (potvrdjeno != true || !context.mounted) return;
-    zakupiStore.promeniStatus(zakup.id, StatusZakupa.placen);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Zakup je plaćen.')),
-    );
+    _primeni(context, platiZakup(zakup), 'Zakup je plaćen.');
   }
 
   Future<void> _otkazi(BuildContext context) async {
-    final besplatno = zakup.besplatnoOtkazivanje(DateTime.now());
+    final besplatno = besplatnoOtkazivanje(zakup, sada: DateTime.now());
 
     // Dijalog vraća true (potvrđeno) ili false/null (odustala).
     final potvrdjeno = await showDialog<bool>(
@@ -139,10 +148,10 @@ class _Sadrzaj extends StatelessWidget {
         title: const Text('Otkazati zakup?'),
         content: Text(
           besplatno
-              ? 'Otkazivanje je besplatno jer je do preuzimanja ostalo '
-                  'više od 48 sati. Ova radnja ne može da se poništi.'
-              : 'Do preuzimanja je ostalo manje od 48 sati, pa otkazivanje '
-                  'nije besplatno. Ova radnja ne može da se poništi.',
+              ? 'Otkazivanje je besplatno jer do preuzimanja ima bar '
+                  '$danaZaBesplatnoOtkazivanje dana. Ova radnja ne može da se poništi.'
+              : 'Do preuzimanja je ostalo manje od $danaZaBesplatnoOtkazivanje dana, '
+                  'pa otkazivanje nije besplatno. Ova radnja ne može da se poništi.',
         ),
         actions: [
           TextButton(
@@ -159,10 +168,20 @@ class _Sadrzaj extends StatelessWidget {
 
     // Posle await proveravamo da li ekran još postoji
     if (potvrdjeno != true || !context.mounted) return;
-    zakupiStore.promeniStatus(zakup.id, StatusZakupa.otkazan);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Zakup je otkazan.')),
-    );
+    _primeni(context, otkaziZakup(zakup, sada: DateTime.now()), 'Zakup je otkazan.');
+  }
+
+  /// Uspeh: store dobija novu verziju zakupa. Neuspeh: prikaži poruku greške.
+  void _primeni(BuildContext context, Rezultat<Zakup> rezultat, String porukaUspeha) {
+    final String poruka;
+    switch (rezultat) {
+      case Uspeh(:final vrednost):
+        zakupiStore.azuriraj(vrednost);
+        poruka = porukaUspeha;
+      case Neuspeh(:final greska):
+        poruka = greska.poruka;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(poruka)));
   }
 }
 
@@ -177,6 +196,7 @@ class _Red extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Text(
@@ -186,7 +206,15 @@ class _Red extends StatelessWidget {
               ),
             ),
           ),
-          Text(vrednost, style: const TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(width: 12),
+          // Flexible: dug tekst (npr. razlog odbijanja) prelazi u novi red
+          Flexible(
+            child: Text(
+              vrednost,
+              textAlign: TextAlign.start,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
         ],
       ),
     );

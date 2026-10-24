@@ -1,12 +1,11 @@
+import 'package:domain/domain.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+
 import '../data/lazni_podaci.dart';
 import '../data/zakupi_store.dart';
-import '../models/pravila.dart';
-import '../models/predmet.dart';
-import '../models/status_zakupa.dart';
-import '../models/zakup.dart';
+import '../text/poruke_gresaka.dart';
 import '../widgets/slika_predmeta.dart';
 
 final _datum = DateFormat('d. M. yyyy.');
@@ -15,7 +14,7 @@ final _datum = DateFormat('d. M. yyyy.');
 class ZahtevFormaScreen extends StatefulWidget {
   const ZahtevFormaScreen({super.key, required this.predmetId});
 
-  final String predmetId;
+  final PredmetId predmetId;
 
   @override
   State<ZahtevFormaScreen> createState() => _ZahtevFormaScreenState();
@@ -26,14 +25,15 @@ class _ZahtevFormaScreenState extends State<ZahtevFormaScreen> {
 
   DateTimeRange? _period;
 
-  /// Aplikacija bira tekst poruke za svaku grešku iz pravila
-  String _poruka(GreskaPerioda greska) => switch (greska) {
-        GreskaPerioda.uProslosti => 'Zakup ne može da počne u prošlosti.',
-        GreskaPerioda.nedozvoljenoTrajanje =>
-          'Zakup traje od $minDanaZakupa do $maxDanaZakupa dana.',
-        GreskaPerioda.zauzet =>
-          'Predmet je već zauzet u delu izabranog perioda.',
-      };
+  /// Pravilo iz domena: ne u prošlosti, 1 do 14 dana, predmet slobodan
+  Rezultat<PeriodZakupa> _proveri(Predmet predmet, DateTimeRange izabrano) =>
+      proveriZahtev(
+        predmet: predmet,
+        od: izabrano.start,
+        doDatuma: izabrano.end,
+        danas: DateTime.now(),
+        postojeciZakupi: zakupiStore.zakupi,
+      );
 
   Future<void> _izaberiPeriod(FormFieldState<DateTimeRange> polje) async {
     final danas = DateTime.now();
@@ -56,14 +56,14 @@ class _ZahtevFormaScreenState extends State<ZahtevFormaScreen> {
     // Pokreće sve validatore u formi; ako neki vrati grešku, staje
     if (!_formKey.currentState!.validate()) return;
 
-    final period = _period!;
+    // Validator je već proverio pravilo, pa je ovde rezultat uspeh
+    final period = _proveri(predmet, _period!).vrednostIliNull;
+    if (period == null) return;
     zakupiStore.dodaj(
       Zakup(
-        id: 'z-${DateTime.now().millisecondsSinceEpoch}',
+        id: ZakupId('z-${DateTime.now().millisecondsSinceEpoch}'),
         predmet: predmet,
-        datumOd: period.start,
-        datumDo: period.end,
-        status: StatusZakupa.zahtev,
+        period: period,
       ),
     );
 
@@ -121,14 +121,11 @@ class _ZahtevFormaScreenState extends State<ZahtevFormaScreen> {
             FormField<DateTimeRange>(
               validator: (izabrano) {
                 if (izabrano == null) return 'Izaberi datume zakupa.';
-                final greska = proveriPeriod(
-                  predmet: predmet,
-                  od: izabrano.start,
-                  doDatuma: izabrano.end,
-                  danas: DateTime.now(),
-                  postojeciZakupi: zakupiStore.zakupi,
-                );
-                return greska == null ? null : _poruka(greska);
+                // Domen vraća tip greške, ekran bira tekst poruke.
+                return switch (_proveri(predmet, izabrano)) {
+                  Uspeh() => null,
+                  Neuspeh(:final greska) => greska.poruka,
+                };
               },
               builder: (polje) => Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -177,7 +174,6 @@ class _ZahtevFormaScreenState extends State<ZahtevFormaScreen> {
   }
 }
 
-/// Jedan red sa nazivom levo i vrednošću desno
 class _Red extends StatelessWidget {
   const _Red(this.naziv, this.vrednost);
 

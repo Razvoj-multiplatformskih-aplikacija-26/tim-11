@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/status_zakupa.dart';
+import 'package:domain/domain.dart';
+import '../text/nazivi.dart';
 
 /// Mala obojena oznaka sa nazivom statusa
 class StatusOznaka extends StatelessWidget {
@@ -8,15 +9,15 @@ class StatusOznaka extends StatelessWidget {
   final StatusZakupa status;
 
   Color get _boja => switch (status) {
-        StatusZakupa.zahtev => Colors.blueGrey,
-        StatusZakupa.odobren => Colors.blue,
-        StatusZakupa.placen => Colors.indigo,
-        StatusZakupa.preuzet => Colors.teal,
-        StatusZakupa.vracen => Colors.lightGreen,
-        StatusZakupa.zavrsen => Colors.green,
-        StatusZakupa.odbijen => Colors.red,
-        StatusZakupa.otkazan => Colors.grey,
-        StatusZakupa.sporan => Colors.orange,
+        Zahtev() => Colors.blueGrey,
+        Odobren() => Colors.blue,
+        Placen() => Colors.indigo,
+        Preuzet() => Colors.teal,
+        Vracen() => Colors.lightGreen,
+        Zavrsen() => Colors.green,
+        Odbijen() => Colors.red,
+        Otkazan() => Colors.grey,
+        Sporan() => Colors.orange,
       };
 
   @override

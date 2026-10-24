@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-
-import '../models/status_zakupa.dart';
-import '../models/zakup.dart';
+import 'package:domain/domain.dart';
+import '../text/nazivi.dart';
 
 enum _Vrsta { prosao, trenutni, sledi }
 
@@ -19,8 +18,7 @@ class TimelineZakupa extends StatelessWidget {
           istorija[i],
           i == istorija.length - 1 ? _Vrsta.trenutni : _Vrsta.prosao,
         ),
-      for (final s in zakup.sledeciKoraci) (s, _Vrsta.sledi),
-    ];
+      for (final s in zakup.status.sledeciKoraci) (s, _Vrsta.sledi),    ];
 
     return Column(
       children: [
@@ -46,10 +44,7 @@ class _Korak extends StatelessWidget {
   final _Vrsta vrsta;
   final bool poslednji;
 
-  bool get _negativan =>
-      status == StatusZakupa.odbijen ||
-      status == StatusZakupa.otkazan ||
-      status == StatusZakupa.sporan;
+  bool get _negativan => status is Odbijen || status is Otkazan || status is Sporan;
 
   @override
   Widget build(BuildContext context) {

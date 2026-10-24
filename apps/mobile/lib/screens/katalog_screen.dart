@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../data/lazni_podaci.dart';
-import '../models/predmet.dart';
+import 'package:domain/domain.dart';
+import '../text/nazivi.dart';
 import '../widgets/predmet_kartica.dart';
 
 /// Katalog predmeta sa pretragom i filterom po kategoriji

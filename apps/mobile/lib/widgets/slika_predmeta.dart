@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-
-import '../models/predmet.dart';
+import 'package:domain/domain.dart';
 import 'ikonica_kategorije.dart';
 
 /// Fotografija predmeta iz assets, ako slika ne postoji, prikazuje ikonicu kategorije umesto nje
