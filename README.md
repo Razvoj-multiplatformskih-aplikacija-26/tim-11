@@ -30,3 +30,25 @@ Osoblje u backoffice-u pregleda red predmeta koji čekaju verifikaciju i listu o
 
 ### 6. Javni sadržaj
 Katalog predmeta sa fotografijama, cenom po danu, depozitom i kalendarom dostupnosti vidljiv je bez prijave. Ima smisla za pretraživače, jer ljudi traže upravo ovakve upite, na primer „iznajmljivanje Dior torbe Beograd“.
+
+
+## Struktura repozitorijuma
+Repozitorijum je monorepo sa pub workspace-om:
+
+| Folder | Šta je |
+|---|---|
+| `apps/mobile` | Flutter aplikacija za zakupce (Android, iOS) |
+| `packages/domain` | domenski paket u čistom Dartu: model, statusi zakupa sa prelazima i pravila |
+
+## Pokretanje
+```
+flutter pub get          # iz korena repozitorijuma, jednom za ceo workspace
+cd apps/mobile
+flutter run
+```
+
+Testovi:
+```
+cd apps/mobile && flutter test
+cd packages/domain && dart test
+```
