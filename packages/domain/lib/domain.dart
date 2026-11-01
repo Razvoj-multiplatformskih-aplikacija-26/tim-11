@@ -9,3 +9,4 @@ export 'src/zakup/period_zakupa.dart';
 export 'src/zakup/pravila.dart';
 export 'src/zakup/status_zakupa.dart';
 export 'src/zakup/zakup.dart';
+export 'src/zakup/zakup_repository.dart';

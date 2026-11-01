@@ -1,0 +1,13 @@
+name: blocs
+publish_to: none
+
+environment:
+  sdk: ^3.13.5
+
+resolution: workspace
+
+dependencies:
+  bloc: ^9.2.1
+  equatable: ^3.0.0
+  domain:
+    path: ../domain
