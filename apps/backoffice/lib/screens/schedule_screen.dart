@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:domain/domain.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:blocs/src/moji_zakupi/zakupi_bloc.dart';
-import '../privremeni_zakup_repository.dart';
+import 'package:backoffice/backoffice_shortcuts.dart';
 
 class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({super.key});
@@ -14,6 +14,7 @@ class ScheduleScreen extends StatefulWidget {
 class _ScheduleScreenState extends State<ScheduleScreen>{
 
   ZakupId? _selectedReservationId;
+  final FocusNode _mainFocusNode=FocusNode();
 
   @override
   void initState() {
@@ -22,12 +23,38 @@ class _ScheduleScreenState extends State<ScheduleScreen>{
   }
 
   @override
+  void dispose() {
+    _mainFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build (BuildContext context){
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Backoffice - Raspored i zakupi'),
+          title: const Text('Backoffice - Raspored i zakupi'),
+          actions: [
+            IconButton(
+            icon:const Icon(Icons.bug_report_outlined),
+            tooltip: 'Simuliraj grešku',
+            onPressed:(){
+
+              context.read<ZakupRepository>().simulirajGresku();
+              context.read<ZakupiBloc>().add(const ZatrazeniZakupi());
+            },
+
+            )],
       ),
-      body: BlocConsumer<ZakupiBloc, ZakupiState>(
+      body:BackofficeShortcuts(
+        focusNode: _mainFocusNode,
+        selectedId: _selectedReservationId,
+        onSelectionChanged: (newId) {
+          setState(() {
+            _selectedReservationId = newId;
+          });
+        },
+
+      child: BlocConsumer<ZakupiBloc, ZakupiState>(
         listener: (context, state) {
 
           if (state is ZakupiUcitani && state.obavestenje != null) {
@@ -68,7 +95,14 @@ class _ScheduleScreenState extends State<ScheduleScreen>{
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Došlo je do greške: $greska'),
+                  Text(
+                    switch (greska) {
+                      ZakupVecPoceo() => 'Došlo je do greške: Mrežna greška.',
+                      NedozvoljenPrelaz(:final od, :final ka) => 'Nedozvoljen prelaz iz ${od.runtimeType} u ${ka.runtimeType}.',
+                      _ => 'Došlo je do neočekivane greške.',
+                    },
+                    style: const TextStyle(fontSize: 16),
+                  ),
                   const SizedBox(height: 12),
                   ElevatedButton(
                     onPressed: () {
@@ -79,57 +113,115 @@ class _ScheduleScreenState extends State<ScheduleScreen>{
                 ],
               ),
             ),
-            ZakupiUcitani(:final zakupi, :final otkazivanje) => Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.vertical,
-                    child: DataTable(
-                      showCheckboxColumn: false,
-                      columns: const [
-                        DataColumn(label: Text('ID')),
-                        DataColumn(label: Text('Klijent')),
-                        DataColumn(label: Text('Datum')),
-                        DataColumn(label: Text('Status')),
-                      ],
-                      rows: zakupi.map((zakup) {
-                        final isSelected = zakup.id == _selectedReservationId;
-                        final d = zakup.datumOd;
-                        final datumStr = '${d.day}.${d.month}.${d.year}.';
-                        return DataRow(
-                          selected: isSelected,
-                          onSelectChanged: (_) {
-                            setState(() {
-                              if (_selectedReservationId == zakup.id) {
-                                _selectedReservationId = null;
-                              } else {
-                                _selectedReservationId = zakup.id;
-                              }
-                            });
-                          },
-                          cells: [
-                            DataCell(Text(zakup.id.toString())),
-                            DataCell(Text(zakup.predmet.naziv)),
-                            DataCell(Text(datumStr)),
-                            DataCell(Text(zakup.status.runtimeType.toString())),
-                          ],
-                        );
-                      }).toList(),
+            ZakupiUcitani(:final zakupi, :final otkazivanje) => LayoutBuilder(
+
+              builder:(context, constraints) {
+
+               final isUzakEkran = constraints.maxWidth < 800;
+
+               if(isUzakEkran){
+                 return Column(
+                   children: [
+                     Expanded(
+                         flex: 1,
+                         child: ListView.separated(
+                           itemCount: zakupi.length,
+                           separatorBuilder:(_, __) => const Divider(height: 1),
+                           itemBuilder: (context,index){
+                             final zakup = zakupi[index];
+                             final isSelected = zakup.id == _selectedReservationId;
+                             final d = zakup.datumOd;
+
+                             return ListTile(
+                               selected:isSelected ,
+                               selectedTileColor: Colors.blue.shade50,
+                               title: Text(
+                                 '${zakup.predmet.naziv} (#${zakup.id})',
+                                 style: const TextStyle(fontWeight: FontWeight.bold),
+                               ),
+                               subtitle: Text(
+                                 'Datum: ${d.day}.${d.month}.${d.year}. | Status: ${zakup.status.runtimeType}',
+                               ),
+                               onTap:(){
+                                 setState(() {
+                                   if(_selectedReservationId==zakup.id){
+                                     _selectedReservationId=null;
+                                   }else{
+                                     _selectedReservationId=zakup.id;
+                                   }
+                                 });
+                               } ,
+                             );
+
+                           },
+                         )
+
+                     ),
+                     const Divider(height: 1, thickness: 2),
+                     Expanded(
+                      flex:1,
+                      child: _buildDetailsPanel(zakupi, otkazivanje),
+                     ),
+
+
+                   ],
+                 );
+               }
+
+               return Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.vertical,
+                      child: DataTable(
+                        showCheckboxColumn: false,
+                        columns: const [
+                          DataColumn(label: Text('ID')),
+                          DataColumn(label: Text('Klijent')),
+                          DataColumn(label: Text('Datum')),
+                          DataColumn(label: Text('Status')),
+                        ],
+                        rows: zakupi.map((zakup) {
+                          final isSelected = zakup.id == _selectedReservationId;
+                          final d = zakup.datumOd;
+                          final datumStr = '${d.day}.${d.month}.${d.year}.';
+                          return DataRow(
+                            selected: isSelected,
+                            onSelectChanged: (_) {
+                              setState(() {
+                                if (_selectedReservationId == zakup.id) {
+                                  _selectedReservationId = null;
+                                } else {
+                                  _selectedReservationId = zakup.id;
+                                }
+                              });
+                            },
+                            cells: [
+                              DataCell(Text(zakup.id.toString())),
+                              DataCell(Text(zakup.predmet.naziv)),
+                              DataCell(Text(datumStr)),
+                              DataCell(Text(zakup.status.runtimeType.toString())),
+                            ],
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ),
-                ),
 
-                const VerticalDivider(width: 1),
-                Expanded(
-                  flex: 1,
-                  child: _buildDetailsPanel(zakupi, otkazivanje),
-                ),
-              ],
+                  const VerticalDivider(width: 1),
+                  Expanded(
+                    flex: 1,
+                    child: _buildDetailsPanel(zakupi, otkazivanje),
+                  ),
+                ],
+               );
+              }
             ),
           };
         },
       ),
+      )
     );
   }
 

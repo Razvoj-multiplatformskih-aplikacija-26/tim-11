@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:blocs/src/moji_zakupi/zakupi_bloc.dart';
+import 'package:domain/domain.dart';
 
 import 'privremeni_zakup_repository.dart';
 import 'screens/schedule_screen.dart';
@@ -21,15 +22,18 @@ class BackofficeApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Backoffice',
-      home: BlocProvider(
+    return RepositoryProvider<ZakupRepository>.value(
+      value: zakupRepository,
+      child:MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'Backoffice',
+        home: BlocProvider(
         create: (context) => ZakupiBloc(
           zakupRepository: zakupRepository,
         )..add(const ZatrazeniZakupi()),
         child: const ScheduleScreen(),
       ),
+      ) ,
     );
   }
 }
