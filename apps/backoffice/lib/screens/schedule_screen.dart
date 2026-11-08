@@ -45,7 +45,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Backoffice - Raspored i zakupi'),
+        title: const Text(
+          'Backoffice - Raspored i zakupi',
+          overflow: TextOverflow.ellipsis,
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -81,8 +84,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   top: false,
                   child: Padding(
                     padding: const EdgeInsets.all(8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         TextButton(
                           onPressed: !ucitavanje && stranica > 0
@@ -172,7 +176,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               ),
               ZakupiUcitani(:final zakupi, :final otkazivanje) => LayoutBuilder(
                 builder: (context, constraints) {
-                  final isUzakEkran = constraints.maxWidth < 800;
+                  final isUzakEkran = constraints.maxWidth < 950;
+                  final imaIzbor = zakupi.any(
+                    (zakup) => zakup.id == _selectedReservationId,
+                  );
 
                   if (isUzakEkran) {
                     return Column(
@@ -187,19 +194,18 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                               final zakup = zakupi[index];
                               final isSelected =
                                   zakup.id == _selectedReservationId;
-                              final d = zakup.datumOd;
-
                               return ListTile(
+                                isThreeLine: true,
                                 selected: isSelected,
                                 selectedTileColor: Colors.blue.shade50,
                                 title: Text(
-                                  '${zakup.predmet.naziv} (#${zakup.id})',
+                                  _naslovZakupa(zakup),
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                                 subtitle: Text(
-                                  'Datum: ${d.day}.${d.month}.${d.year}. | Status: ${zakup.status.runtimeType}',
+                                  '${_periodZakupa(zakup)}\nStatus: ${zakup.status.runtimeType}',
                                 ),
                                 onTap: () {
                                   setState(() {
@@ -214,11 +220,13 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                             },
                           ),
                         ),
-                        const Divider(height: 1, thickness: 2),
-                        Expanded(
-                          flex: 1,
-                          child: _buildDetailsPanel(zakupi, otkazivanje),
-                        ),
+                        if (imaIzbor) ...[
+                          const Divider(height: 1, thickness: 2),
+                          Expanded(
+                            flex: 1,
+                            child: _buildDetailsPanel(zakupi, otkazivanje),
+                          ),
+                        ],
                       ],
                     );
                   }
@@ -231,17 +239,15 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                           scrollDirection: Axis.vertical,
                           child: DataTable(
                             showCheckboxColumn: false,
+                            columnSpacing: 20,
                             columns: const [
-                              DataColumn(label: Text('ID')),
-                              DataColumn(label: Text('Klijent')),
-                              DataColumn(label: Text('Datum')),
+                              DataColumn(label: Text('Zahtev')),
+                              DataColumn(label: Text('Termin')),
                               DataColumn(label: Text('Status')),
                             ],
                             rows: zakupi.map((zakup) {
                               final isSelected =
                                   zakup.id == _selectedReservationId;
-                              final d = zakup.datumOd;
-                              final datumStr = '${d.day}.${d.month}.${d.year}.';
                               return DataRow(
                                 selected: isSelected,
                                 onSelectChanged: (_) {
@@ -254,9 +260,19 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                                   });
                                 },
                                 cells: [
-                                  DataCell(Text(zakup.id.toString())),
-                                  DataCell(Text(zakup.predmet.naziv)),
-                                  DataCell(Text(datumStr)),
+                                  DataCell(
+                                    ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 210,
+                                      ),
+                                      child: Text(
+                                        _naslovZakupa(zakup),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(Text(_periodZakupa(zakup))),
                                   DataCell(
                                     Text(zakup.status.runtimeType.toString()),
                                   ),
@@ -319,28 +335,35 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       child: ListView(
         children: [
           Text(
-            'Detalji zakupa #${selectedItem.id}',
+            _naslovZakupa(selectedItem),
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: ColoredBox(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: Image.asset(
-                'assets/predmeti/${selectedItem.predmet.id}.jpg',
-                package: 'mobile',
-                height: 180,
-                fit: BoxFit.contain,
-                semanticLabel: selectedItem.predmet.naziv,
-                errorBuilder: (context, error, stackTrace) => const SizedBox(
-                  height: 180,
-                  child: Center(
-                    child: Icon(Icons.image_not_supported_outlined),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final visina = (constraints.maxWidth * 0.45)
+                  .clamp(88.0, 180.0)
+                  .toDouble();
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: ColoredBox(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  child: Image.asset(
+                    'assets/predmeti/${selectedItem.predmet.id}.jpg',
+                    package: 'mobile',
+                    height: visina,
+                    fit: BoxFit.contain,
+                    semanticLabel: selectedItem.predmet.naziv,
+                    errorBuilder: (context, error, stackTrace) => SizedBox(
+                      height: visina,
+                      child: const Center(
+                        child: Icon(Icons.image_not_supported_outlined),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
           const SizedBox(height: 12),
           ListTile(
@@ -510,4 +533,16 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       ),
     );
   }
+}
+
+String _naslovZakupa(Zakup zakup) {
+  final oznaka = zakup.oznakaZakupca;
+  return oznaka == null
+      ? zakup.predmet.naziv
+      : '$oznaka — ${zakup.predmet.naziv}';
+}
+
+String _periodZakupa(Zakup zakup) {
+  String datum(DateTime d) => '${d.day}.${d.month}.${d.year}.';
+  return '${datum(zakup.datumOd)} – ${datum(zakup.datumDo)}';
 }

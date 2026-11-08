@@ -95,6 +95,7 @@ Handler preuzmiZakupeHandler({
 
     final zakupi = await store.preuzmiZakupe(
       zakupacId: korisnik.uloga == 'zakupac' ? korisnik.id : null,
+      prikaziZakupca: korisnik.uloga == 'osoblje',
       limit: limit == null ? null : limit + 1,
       pomeraj: pomeraj,
     );

@@ -12,6 +12,7 @@ final class Zakup {
     required this.predmet,
     required this.period,
     this.status = const Zahtev(),
+    this.oznakaZakupca,
     List<StatusZakupa>? istorija,
   }) : istorija = List.unmodifiable(istorija ?? podrazumevanaIstorija(status));
 
@@ -19,6 +20,7 @@ final class Zakup {
   final Predmet predmet;
   final PeriodZakupa period;
   final StatusZakupa status;
+  final String? oznakaZakupca;
   final List<StatusZakupa> istorija;
 
   DateTime get datumOd => period.od;
@@ -28,18 +30,30 @@ final class Zakup {
 
   /// Ista vrednost sa novim statusom dodatim u istoriju.
   /// Pravila iz pravila.dart je zovu tek posle provere prelaza
-  Zakup saStatusom(StatusZakupa novi) =>
-      Zakup(id: id, predmet: predmet, period: period, status: novi, istorija: [...istorija, novi]);
+  Zakup saStatusom(StatusZakupa novi) => Zakup(
+    id: id,
+    predmet: predmet,
+    period: period,
+    status: novi,
+    oznakaZakupca: oznakaZakupca,
+    istorija: [...istorija, novi],
+  );
 
   /// Istorija za zakup koji je napravljen odmah u nekom statusu (npr. lazni podaci)
-  static List<StatusZakupa> podrazumevanaIstorija(StatusZakupa status) => switch (status) {
-    Odbijen() || Otkazan() => <StatusZakupa>[const Zahtev(), status],
-    Sporan() => <StatusZakupa>[...StatusZakupa.glavniTok.take(5), status],
-    Zahtev() || Odobren() || Placen() || Preuzet() || Vracen() || Zavrsen() => StatusZakupa.glavniTok.sublist(
-      0,
-      StatusZakupa.glavniTok.indexOf(status) + 1,
-    ),
-  };
+  static List<StatusZakupa> podrazumevanaIstorija(StatusZakupa status) =>
+      switch (status) {
+        Odbijen() || Otkazan() => <StatusZakupa>[const Zahtev(), status],
+        Sporan() => <StatusZakupa>[...StatusZakupa.glavniTok.take(5), status],
+        Zahtev() ||
+        Odobren() ||
+        Placen() ||
+        Preuzet() ||
+        Vracen() ||
+        Zavrsen() => StatusZakupa.glavniTok.sublist(
+          0,
+          StatusZakupa.glavniTok.indexOf(status) + 1,
+        ),
+      };
 
   @override
   bool operator ==(Object other) =>
@@ -48,10 +62,18 @@ final class Zakup {
       other.predmet == predmet &&
       other.period == period &&
       other.status == status &&
+      other.oznakaZakupca == oznakaZakupca &&
       _isteListe(other.istorija, istorija);
 
   @override
-  int get hashCode => Object.hash(id, predmet, period, status, Object.hashAll(istorija));
+  int get hashCode => Object.hash(
+    id,
+    predmet,
+    period,
+    status,
+    oznakaZakupca,
+    Object.hashAll(istorija),
+  );
 
   @override
   String toString() => 'Zakup($id, ${status.runtimeType})';

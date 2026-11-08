@@ -65,6 +65,7 @@ final class ZakupDto {
     required this.datumDo,
     required this.status,
     required this.istorija,
+    this.oznakaZakupca,
   });
 
   final String id;
@@ -73,6 +74,7 @@ final class ZakupDto {
   final String datumDo;
   final StatusZakupaDto status;
   final List<StatusZakupaDto> istorija;
+  final String? oznakaZakupca;
 
   factory ZakupDto.fromJson(Map<String, Object?> json) => ZakupDto(
     id: json['id'] as String,
@@ -80,6 +82,7 @@ final class ZakupDto {
     datumOd: json['datumOd'] as String,
     datumDo: json['datumDo'] as String,
     status: StatusZakupaDto.fromJson(json['status'] as Map<String, Object?>),
+    oznakaZakupca: json['oznakaZakupca'] as String?,
     istorija: [
       for (final korak in json['istorija'] as List<Object?>)
         StatusZakupaDto.fromJson(korak as Map<String, Object?>),
@@ -92,15 +95,13 @@ final class ZakupDto {
     'datumOd': datumOd,
     'datumDo': datumDo,
     'status': status.toJson(),
+    if (oznakaZakupca != null) 'oznakaZakupca': oznakaZakupca,
     'istorija': [for (final korak in istorija) korak.toJson()],
   };
 }
 
 final class ListaZakupaOdgovor {
-  const ListaZakupaOdgovor({
-    required this.zakupi,
-    this.sledeciPomeraj,
-  });
+  const ListaZakupaOdgovor({required this.zakupi, this.sledeciPomeraj});
 
   final List<ZakupDto> zakupi;
   final int? sledeciPomeraj;

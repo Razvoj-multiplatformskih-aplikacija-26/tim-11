@@ -19,11 +19,13 @@ final class ZakupStore {
 
   Future<List<Zakup>> preuzmiZakupe({
     required String? zakupacId,
+    bool prikaziZakupca = false,
     int? limit,
     int pomeraj = 0,
   }) => _ucitajZakupe(
     _baza,
     zakupacId: zakupacId,
+    prikaziZakupca: prikaziZakupca,
     limit: limit,
     pomeraj: pomeraj,
   );
@@ -32,6 +34,7 @@ final class ZakupStore {
     Session sesija, {
     String? zakupacId,
     String? zakupId,
+    bool prikaziZakupca = false,
     int? limit,
     int pomeraj = 0,
   }) async {
@@ -51,9 +54,13 @@ final class ZakupStore {
           p.cena_po_danu,
           p.depozit,
           p.opis,
-          p.vlasnik
+          p.vlasnik,
+          CASE WHEN CAST(@prikaziZakupca AS boolean)
+               THEN split_part(k.email, '@', 1)
+          END
         FROM zakupi z
         JOIN predmeti p ON p.id = z.predmet_id
+        JOIN korisnici k ON k.id = z.zakupac_id
         WHERE (CAST(@zakupac AS text) IS NULL
                OR z.zakupac_id = CAST(@zakupac AS text))
           AND (CAST(@zakup AS text) IS NULL
@@ -65,6 +72,7 @@ final class ZakupStore {
       parameters: {
         'zakupac': zakupacId,
         'zakup': zakupId,
+        'prikaziZakupca': prikaziZakupca,
         'limit': limit,
         'pomeraj': pomeraj,
       },
@@ -75,6 +83,7 @@ final class ZakupStore {
         zakupIzApi(
           ZakupDto(
             id: red[0] as String,
+            oznakaZakupca: red[14] as String?,
             datumOd: red[1] as String,
             datumDo: red[2] as String,
             status: StatusZakupaDto(
@@ -131,7 +140,11 @@ final class ZakupStore {
       throw ProblemAkcijeZakupa.zabranjeno;
     }
 
-    final zakupi = await _ucitajZakupe(transakcija, zakupId: zakupId);
+    final zakupi = await _ucitajZakupe(
+      transakcija,
+      zakupId: zakupId,
+      prikaziZakupca: uloga == Uloga.osoblje,
+    );
     final zakup = zakupi.single;
 
     final rezultat = switch (akcija) {

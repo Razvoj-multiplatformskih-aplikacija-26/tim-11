@@ -130,6 +130,7 @@ ZakupDto zakupZaApi(Zakup zakup) => ZakupDto(
   datumOd: _upisiDatum(zakup.datumOd),
   datumDo: _upisiDatum(zakup.datumDo),
   status: statusZaApi(zakup.status),
+  oznakaZakupca: zakup.oznakaZakupca,
   istorija: [for (final korak in zakup.istorija) statusZaApi(korak)],
 );
 
@@ -141,6 +142,7 @@ Zakup zakupIzApi(ZakupDto dto) => Zakup(
     doDatuma: _procitajDatum(dto.datumDo),
   ),
   status: statusIzApi(dto.status),
+  oznakaZakupca: dto.oznakaZakupca,
   istorija: [for (final korak in dto.istorija) statusIzApi(korak)],
 );
 
