@@ -1,15 +1,11 @@
+import 'package:backoffice/odbij_zakup.dart';
+import 'package:blocs/blocs.dart';
+import 'package:domain/domain.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:domain/domain.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:blocs/src/moji_zakupi/zakupi_bloc.dart';
 
 class BackofficeShortcuts extends StatelessWidget {
-  final FocusNode focusNode;
-  final ZakupId? selectedId;
-  final ValueChanged<ZakupId?> onSelectionChanged;
-  final Widget child;
-
   const BackofficeShortcuts({
     super.key,
     required this.focusNode,
@@ -18,43 +14,23 @@ class BackofficeShortcuts extends StatelessWidget {
     required this.child,
   });
 
+  final FocusNode focusNode;
+  final ZakupId? selectedId;
+  final ValueChanged<ZakupId?> onSelectionChanged;
+  final Widget child;
+
   void _navigirajKrozListu(List<Zakup> zakupi, int smer) {
     if (zakupi.isEmpty) return;
 
-    if (selectedId == null) {
+    final trenutniIndeks = zakupi.indexWhere((zakup) => zakup.id == selectedId);
+    if (trenutniIndeks == -1) {
       onSelectionChanged(zakupi.first.id);
       return;
     }
 
-    final currentIndex = zakupi.indexWhere((z) => z.id == selectedId);
-    final newIndex = currentIndex + smer;
-
-    if (newIndex >= 0 && newIndex < zakupi.length) {
-      onSelectionChanged(zakupi[newIndex].id);
-    }
-  }
-
-  void _izvrsiAkciju(BuildContext context, List<Zakup> zakupi, String akcija) {
-    if (selectedId == null) return;
-    final selectedItem = zakupi.firstWhere(
-          (z) => z.id == selectedId,
-      orElse: () => zakupi.first,
-    );
-
-    if (akcija == 'potvrdi' && selectedItem.status is Zahtev) {
-      context.read<ZakupiBloc>().add(
-        PromenaStatusaZakupa(
-          id: selectedItem.id,
-          noviStatus: const Odobren(),
-        ),
-      );
-    } else if (akcija == 'otkazi' &&
-        (selectedItem.status is Zahtev ||
-            selectedItem.status is Odobren ||
-            selectedItem.status is Placen)) {
-      context.read<ZakupiBloc>().add(
-        OtkazivanjeZakupa(selectedItem.id),
-      );
+    final noviIndeks = trenutniIndeks + smer;
+    if (noviIndeks >= 0 && noviIndeks < zakupi.length) {
+      onSelectionChanged(zakupi[noviIndeks].id);
     }
   }
 
@@ -66,27 +42,38 @@ class BackofficeShortcuts extends StatelessWidget {
       onKeyEvent: (node, event) {
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
-        final state = context.read<ZakupiBloc>().state;
-        if (state is! ZakupiUcitani) return KeyEventResult.ignored;
+        final stanje = context.read<ZakupiBloc>().state;
+        if (stanje is! ZakupiUcitani) return KeyEventResult.ignored;
 
-        final zakupi = state.zakupi;
+        final zakupi = stanje.zakupi;
+        final taster = event.logicalKey;
 
-        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+        if (taster == LogicalKeyboardKey.arrowDown) {
           _navigirajKrozListu(zakupi, 1);
           return KeyEventResult.handled;
-        } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+        }
+
+        if (taster == LogicalKeyboardKey.arrowUp) {
           _navigirajKrozListu(zakupi, -1);
           return KeyEventResult.handled;
         }
 
-        if (event.logicalKey == LogicalKeyboardKey.enter) {
-          _izvrsiAkciju(context, zakupi, 'potvrdi');
+        final indeks = zakupi.indexWhere((zakup) => zakup.id == selectedId);
+        if (indeks == -1) return KeyEventResult.ignored;
+
+        final zakup = zakupi[indeks];
+        if (zakup.status is! Zahtev) return KeyEventResult.ignored;
+
+        if (taster == LogicalKeyboardKey.enter) {
+          context.read<ZakupiBloc>().add(
+            PromenaStatusaZakupa(id: zakup.id, noviStatus: const Odobren()),
+          );
           return KeyEventResult.handled;
         }
 
-        if (event.logicalKey == LogicalKeyboardKey.delete ||
-            event.logicalKey == LogicalKeyboardKey.backspace) {
-          _izvrsiAkciju(context, zakupi, 'otkazi');
+        if (taster == LogicalKeyboardKey.delete ||
+            taster == LogicalKeyboardKey.backspace) {
+          odbijZakup(context, zakup);
           return KeyEventResult.handled;
         }
 

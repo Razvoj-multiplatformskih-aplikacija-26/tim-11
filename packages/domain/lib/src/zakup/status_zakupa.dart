@@ -16,11 +16,10 @@ sealed class StatusZakupa {
     Zavrsen(),
   ];
 
-  /// Da li zakup u ovom statusu drzi termin, pa drugi ne mogu da ga zakupe
   bool get zauzimaTermin => switch (this) {
-    Odobren() || Placen() || Preuzet() => true,
-    Zahtev() || Vracen() || Zavrsen() || Odbijen() || Otkazan() || Sporan() => false,
-  };
+  Zahtev() || Odobren() || Placen() || Preuzet() => true,
+  Vracen() || Zavrsen() || Odbijen() || Otkazan() || Sporan() => false,
+};
 
   /// Da li je zakup u ovom statusu zavrsen i vise se ne menja
   bool get jeKonacan => switch (this) {

@@ -1,0 +1,11 @@
+name: ui_text
+publish_to: none
+
+environment:
+  sdk: ^3.13.0
+
+resolution: workspace
+
+dependencies:
+  domain:
+    path: ../domain

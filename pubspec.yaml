@@ -9,6 +9,14 @@ workspace:
   - apps/mobile
   - packages/domain
   - packages/blocs
+  - packages/api_contract
+  - packages/api_mapping
+  - apps/server
+  - packages/api_client
+  - apps/backoffice
+  - packages/session_storage
+  - packages/ui_text
+
 
 dev_dependencies:
   flutter_lints: ^6.0.0

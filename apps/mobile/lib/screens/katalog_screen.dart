@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../data/lazni_podaci.dart';
+
+import '../widgets/ucitavanje_kataloga.dart';
+
 import 'package:domain/domain.dart';
+
 import '../text/nazivi.dart';
 import '../widgets/predmet_kartica.dart';
 
@@ -21,12 +24,14 @@ class _KatalogScreenState extends State<KatalogScreen> {
   String _pretraga = '';
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      UcitavanjeKataloga(builder: _prikaziKatalog);
+  Widget _prikaziKatalog(BuildContext context, List<Predmet> sviPredmeti) {
     final upit = _pretraga.trim().toLowerCase();
-    final predmeti = lazniPredmeti.where((p) {
-      final odgovaraKategoriji =
-          _izabrana == null || p.kategorija == _izabrana;
-      final odgovaraPretrazi = upit.isEmpty ||
+    final predmeti = sviPredmeti.where((p) {
+      final odgovaraKategoriji = _izabrana == null || p.kategorija == _izabrana;
+      final odgovaraPretrazi =
+          upit.isEmpty ||
           p.brend.toLowerCase().contains(upit) ||
           p.naziv.toLowerCase().contains(upit) ||
           p.kategorija.naziv.toLowerCase().contains(upit);
@@ -88,11 +93,11 @@ class _KatalogScreenState extends State<KatalogScreen> {
                     padding: const EdgeInsets.all(12),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 0.65,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
-                    ),
+                          crossAxisCount: 2,
+                          childAspectRatio: 0.65,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                        ),
                     itemCount: predmeti.length,
                     itemBuilder: (context, i) => PredmetKartica(
                       predmet: predmeti[i],

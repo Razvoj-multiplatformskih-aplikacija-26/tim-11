@@ -1,16 +1,19 @@
+import 'package:api_client/api_client.dart';
+import 'package:api_mapping/api_mapping.dart';
 import 'package:domain/domain.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../data/lazni_podaci.dart';
-import '../data/zakupi_store.dart';
+import '../data/mobilna_sesija.dart';
 import '../text/poruke_gresaka.dart';
+import '../widgets/prijava_zakupca.dart';
 import '../widgets/slika_predmeta.dart';
+import '../widgets/ucitavanje_kataloga.dart';
 
 final _datum = DateFormat('d. M. yyyy.');
 
-/// Forma za slanje zahteva za zakup
 class ZahtevFormaScreen extends StatefulWidget {
   const ZahtevFormaScreen({super.key, required this.predmetId});
 
@@ -24,16 +27,53 @@ class _ZahtevFormaScreenState extends State<ZahtevFormaScreen> {
   final _formKey = GlobalKey<FormState>();
 
   DateTimeRange? _period;
+  bool _slanjeUToku = false;
+  late Future<List<PeriodZakupa>> _dostupnost;
+  List<PeriodZakupa> _zauzetiPeriodi = const [];
 
-  /// Pravilo iz domena: ne u prošlosti, 1 do 14 dana, predmet slobodan
-  Rezultat<PeriodZakupa> _proveri(Predmet predmet, DateTimeRange izabrano) =>
-      proveriZahtev(
-        predmet: predmet,
-        od: izabrano.start,
-        doDatuma: izabrano.end,
-        danas: DateTime.now(),
-        postojeciZakupi: zakupiStore.zakupi,
-      );
+  @override
+  void initState() {
+    super.initState();
+    _dostupnost = _ucitajDostupnost();
+  }
+
+  Future<List<PeriodZakupa>> _ucitajDostupnost() async {
+    final odgovor = await context.read<RentApi>().preuzmiZauzetePeriode(
+      widget.predmetId.value,
+    );
+
+    final periodi = [
+      for (final period in odgovor.periodi)
+        PeriodZakupa.izBaze(
+          od: DateTime.parse(period.datumOd),
+          doDatuma: DateTime.parse(period.datumDo),
+        ),
+    ];
+
+    if (mounted) _zauzetiPeriodi = periodi;
+    return periodi;
+  }
+
+  void _osveziDostupnost() {
+    setState(() => _dostupnost = _ucitajDostupnost());
+  }
+
+  Rezultat<PeriodZakupa> _proveri(Predmet predmet, DateTimeRange izabrano) {
+    final rezultat = proveriZahtev(
+      predmet: predmet,
+      od: izabrano.start,
+      doDatuma: izabrano.end,
+      danas: DateTime.now(),
+      postojeciZakupi: const [],
+    );
+
+    final period = rezultat.vrednostIliNull;
+    if (period != null && _zauzetiPeriodi.any(period.preklapaSe)) {
+      return const Neuspeh<PeriodZakupa>(TerminZauzet());
+    }
+
+    return rezultat;
+  }
 
   Future<void> _izaberiPeriod(FormFieldState<DateTimeRange> polje) async {
     final danas = DateTime.now();
@@ -45,48 +85,95 @@ class _ZahtevFormaScreenState extends State<ZahtevFormaScreen> {
       helpText: 'Izaberi period zakupa',
       saveText: 'Potvrdi',
     );
-    if (izabrano == null) return; // odustajanje
+
+    if (!mounted || !polje.mounted || izabrano == null) return;
 
     setState(() => _period = izabrano);
     polje.didChange(izabrano);
-    polje.validate(); // provera pravila
+    polje.validate();
   }
 
-  void _posalji(Predmet predmet) {
-    // Pokreće sve validatore u formi; ako neki vrati grešku, staje
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _posalji(Predmet predmet) async {
+    if (_slanjeUToku || _formKey.currentState?.validate() != true) return;
 
-    // Validator je već proverio pravilo, pa je ovde rezultat uspeh
-    final period = _proveri(predmet, _period!).vrednostIliNull;
+    final izabrano = _period;
+    if (izabrano == null) return;
+
+    final period = _proveri(predmet, izabrano).vrednostIliNull;
     if (period == null) return;
-    zakupiStore.dodaj(
-      Zakup(
-        id: ZakupId('z-${DateTime.now().millisecondsSinceEpoch}'),
-        predmet: predmet,
-        period: period,
-      ),
-    );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Zahtev je poslat vlasniku.')),
-    );
-    context.go('/zakupi');
+    final api = context.read<RentApi>();
+    final sesija = context.read<MobilnaSesija>();
+    setState(() => _slanjeUToku = true);
+
+    try {
+      final prijavljen = await zatraziPrijavuZakupca(context);
+      if (!mounted || !prijavljen) return;
+
+      final token = sesija.token;
+      if (token == null) return;
+
+      final zahtev = noviZakupZaApi((
+        predmetId: predmet.id,
+        datumOd: period.od,
+        datumDo: period.doDatuma,
+      ));
+
+      try {
+        await api.napraviZakup(zahtev, token: token);
+      } on ApiIzuzetak catch (greska) {
+        if (greska.httpStatus == 401) {
+          try {
+            await sesija.zaboraviToken(token);
+          } on Exception {
+            // Sesija je već uklonjena iz memorije.
+          }
+        }
+
+        if (!mounted) return;
+
+        if (greska.greska.kod == 'termin_zauzet') {
+          _osveziDostupnost();
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(greskaIzApi(greska.greska).poruka)),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Zahtev je poslat.')));
+      context.go('/');
+    } finally {
+      if (mounted) setState(() => _slanjeUToku = false);
+    }
   }
 
   @override
-  Widget build(BuildContext context) {
-    final predmet = nadjiPredmet(widget.predmetId);
-    if (predmet == null) {
+  Widget build(BuildContext context) => UcitavanjeKataloga(
+    builder: (context, predmeti) {
+      for (final predmet in predmeti) {
+        if (predmet.id == widget.predmetId) {
+          return _prikaziFormu(context, predmet);
+        }
+      }
+
       return Scaffold(
         appBar: AppBar(),
         body: const Center(child: Text('Predmet ne postoji.')),
       );
-    }
+    },
+  );
 
+  Widget _prikaziFormu(BuildContext context, Predmet predmet) {
     final tekst = Theme.of(context).textTheme;
     final period = _period;
-    final brojDana =
-        period == null ? 0 : period.end.difference(period.start).inDays + 1;
+    final brojDana = period == null
+        ? 0
+        : samoDatum(period.end).difference(samoDatum(period.start)).inDays + 1;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Zahtev za zakup')),
@@ -95,7 +182,6 @@ class _ZahtevFormaScreenState extends State<ZahtevFormaScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Koji predmet se iznajmljuje
             Row(
               children: [
                 SlikaPredmeta(predmet: predmet, sirina: 64, visina: 64),
@@ -113,15 +199,15 @@ class _ZahtevFormaScreenState extends State<ZahtevFormaScreen> {
               ],
             ),
             const SizedBox(height: 24),
-
             Text('Period zakupa', style: tekst.titleSmall),
             const SizedBox(height: 8),
-
-            // Polje forme za period: dugme otvara kalendar i proveravaju se pravila
+            _prikaziDostupnost(),
+            const SizedBox(height: 8),
             FormField<DateTimeRange>(
+              initialValue: period,
               validator: (izabrano) {
                 if (izabrano == null) return 'Izaberi datume zakupa.';
-                // Domen vraća tip greške, ekran bira tekst poruke.
+
                 return switch (_proveri(predmet, izabrano)) {
                   Uspeh() => null,
                   Neuspeh(:final greska) => greska.poruka,
@@ -131,13 +217,15 @@ class _ZahtevFormaScreenState extends State<ZahtevFormaScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: () => _izaberiPeriod(polje),
+                    onPressed: _slanjeUToku
+                        ? null
+                        : () => _izaberiPeriod(polje),
                     icon: const Icon(Icons.date_range),
                     label: Text(
                       period == null
                           ? 'Izaberi datume'
                           : '${_datum.format(period.start)} – '
-                              '${_datum.format(period.end)}',
+                                '${_datum.format(period.end)}',
                     ),
                   ),
                   if (polje.hasError)
@@ -153,23 +241,60 @@ class _ZahtevFormaScreenState extends State<ZahtevFormaScreen> {
                 ],
               ),
             ),
-
-            // Pregled cene, kad je period izabran
             if (period != null) ...[
               const SizedBox(height: 16),
               _Red('Broj dana', '$brojDana'),
               _Red('Ukupno', '${brojDana * predmet.cenaPoDanu} €'),
               _Red('Depozit (vraća se)', '${predmet.depozit} €'),
             ],
-
             const SizedBox(height: 24),
             FilledButton(
-              onPressed: () => _posalji(predmet),
-              child: const Text('Pošalji zahtev'),
+              onPressed: _slanjeUToku ? null : () => _posalji(predmet),
+              child: Text(
+                _slanjeUToku ? 'Slanje je u toku…' : 'Pošalji zahtev',
+              ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _prikaziDostupnost() {
+    return FutureBuilder<List<PeriodZakupa>>(
+      future: _dostupnost,
+      builder: (context, stanje) {
+        if (stanje.connectionState != ConnectionState.done) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: LinearProgressIndicator(),
+          );
+        }
+
+        final periodi = stanje.data;
+        if (periodi == null) {
+          return TextButton(
+            onPressed: _osveziDostupnost,
+            child: const Text('Dostupnost nije učitana. Pokušaj ponovo.'),
+          );
+        }
+
+        if (periodi.isEmpty) {
+          return const Text('Nema zauzetih termina.');
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Zauzeti termini:'),
+            for (final period in periodi)
+              Text(
+                '${_datum.format(period.od)} – '
+                '${_datum.format(period.doDatuma)}',
+              ),
+          ],
+        );
+      },
     );
   }
 }

@@ -4,15 +4,14 @@ import 'package:mobile/data/lazni_podaci.dart';
 class PrivremeniZakupRepository implements ZakupRepository {
   final List<Zakup> _zakupi = List.from(lazniZakupi);
 
-  bool _trebaDaBaciGresku =false;
-
+  bool _trebaDaBaciGresku = false;
 
   @override
   Future<Rezultat<List<Zakup>>> preuzmiSveZakupe() async {
     await Future.delayed(const Duration(milliseconds: 300));
 
-    if(_trebaDaBaciGresku){
-      _trebaDaBaciGresku =false;
+    if (_trebaDaBaciGresku) {
+      _trebaDaBaciGresku = false;
       return const Neuspeh(ZakupVecPoceo());
     }
 
@@ -37,15 +36,12 @@ class PrivremeniZakupRepository implements ZakupRepository {
   Future<Rezultat<Zakup>> otkaziZakup(ZakupId id) async {
     return promeniStatusZakupa(
       id: id,
-      noviZakup: Otkazan(
-        otkazanoU: DateTime.now(),
-        besplatno: true,
-      ),
+      noviZakup: Otkazan(otkazanoU: DateTime.now(), besplatno: true),
     );
   }
 
   @override
   void simulirajGresku() {
-    _trebaDaBaciGresku =true;
+    _trebaDaBaciGresku = true;
   }
 }

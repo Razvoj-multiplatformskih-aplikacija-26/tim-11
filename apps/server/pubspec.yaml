@@ -1,0 +1,17 @@
+name: rent_a_luxury_server
+publish_to: none
+
+environment:
+  sdk: ^3.13.0
+
+resolution: workspace
+
+dependencies:
+  api_mapping:
+    path: ../../packages/api_mapping
+  domain:
+    path: ../../packages/domain
+  postgres: ^3.6.0
+  relic: 1.2.0
+  api_contract:
+    path: ../../packages/api_contract

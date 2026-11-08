@@ -19,7 +19,8 @@ final class NedozvoljenoTrajanje extends DomenskaGreska {
   final int brojDana;
 
   @override
-  bool operator ==(Object other) => other is NedozvoljenoTrajanje && other.brojDana == brojDana;
+  bool operator ==(Object other) =>
+      other is NedozvoljenoTrajanje && other.brojDana == brojDana;
 
   @override
   int get hashCode => Object.hash(NedozvoljenoTrajanje, brojDana);
@@ -43,11 +44,20 @@ final class NedozvoljenPrelaz extends DomenskaGreska {
   final StatusZakupa ka;
 
   @override
-  bool operator ==(Object other) => other is NedozvoljenPrelaz && other.od == od && other.ka == ka;
+  bool operator ==(Object other) =>
+      other is NedozvoljenPrelaz && other.od == od && other.ka == ka;
 
   @override
   int get hashCode => Object.hash(NedozvoljenPrelaz, od, ka);
 
   @override
-  String toString() => 'NedozvoljenPrelaz(${od.runtimeType} -> ${ka.runtimeType})';
+  String toString() =>
+      'NedozvoljenPrelaz(${od.runtimeType} -> ${ka.runtimeType})';
+}
+
+final class ServerskaGreska extends DomenskaGreska {
+  const ServerskaGreska(this.kod, {this.podaci = const {}});
+
+  final String kod;
+  final Map<String, Object?> podaci;
 }

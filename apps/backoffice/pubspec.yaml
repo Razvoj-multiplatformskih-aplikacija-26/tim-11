@@ -1,26 +1,36 @@
 name: backoffice
-description: "Backoffice aplikacija za osoblje"
-publish_to: 'none'
+description: Rent a Luxury backoffice za osoblje.
+publish_to: none
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: ^3.13.0
+
+resolution: workspace
 
 dependencies:
   flutter:
     sdk: flutter
   flutter_bloc: ^9.1.1
+  api_client:
+    path: ../../packages/api_client
+  api_contract:
+    path: ../../packages/api_contract
   blocs:
-    path: '../../packages/blocs'
+    path: ../../packages/blocs
   domain:
-    path: '../../packages/domain'
+    path: ../../packages/domain
   mobile:
-    path: '../mobile'
+    path: ../mobile
+  ui_text:
+    path: ../../packages/ui_text
+  session_storage:
+    path: ../../packages/session_storage
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true

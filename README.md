@@ -1,54 +1,136 @@
 # Rent a Luxury
 
-## Članovi tima
-Ana Nikolić - 135/24si - AnaNikolic13524si
-Balša Raičević - 123/24si - braicevic12324si
+## Opšti deo
 
-## Opis sistema
+Rent a Luxury povezuje ljude koji žele da iznajme dizajnerske torbe, satove, nakit, odeću i naočare sa vlasnicima tih predmeta. Zakupac bira predmet i termin, šalje zahtev i plaća zakup uz depozit. Osoblje koristi backoffice za obradu zahteva i sporova.
 
-Rent a Luxury je platforma za iznajmljivanje skupih i prestižnih predmeta između korisnika: dizajnerskih torbi, satova, nakita, odeće i naočara.
-Mnogi žele da za venčanje, maturu ili poslovni događaj nose originalnu dizajnersku torbu ili sat, ali ne mogu ili ne žele da ih kupe. Sa druge strane, vlasnici takvih predmeta ih većinu vremena ne koriste. Rent a Luxury ih povezuje: vlasnik oglašava predmet i zarađuje od zakupa, a zakupac ga koristi nekoliko dana za deo cene, uz depozit kao garanciju.
-Poverenje je ključno, jer se radi o predmetima velike vrednosti. Zato osoblje platforme pre objave proverava autentičnost svakog predmeta. Pri preuzimanju i vraćanju obe strane prave zapisnik sa fotografijama stanja predmeta, a ako dođe do oštećenja, osoblje rešava spor i odlučuje o depozitu.
+### Članovi tima
 
-## Zahtevi
-### 1. Uloge
-Zakupac pretražuje predmete, šalje zahteve i plaća zakup, a vlasnik oglašava predmete i odobrava ili odbija zahteve. 
-Osoblje verifikuje autentičnost predmeta, rešava sporove i odlučuje o depozitu, pa svaka uloga ima različita ovlašćenja nad istim zakupom.
+| Ime i prezime | Indeks | GitHub |
+| --- | --- | --- |
+| Ana Nikolić | 135/24si | `AnaNikolic13524si` |
+| Balša Raičević | 123/24si | `braicevic12324si` |
 
-### 2. Stanja
-Zakup prolazi kroz stanja
-**zahtev → odobren → plaćen → preuzet → vraćen → završen**, uz sporedna stanja **odbijen**, **otkazan** i **sporan**. I predmet ima sopstvena stanja: na proveri, aktivan, pauziran i povučen.
+### Zahtevi teme
 
-### 3. Pravila
-Isti predmet ne može biti iznajmljen u preklapajućim terminima, pa kad dva zakupca istovremeno traže iste datume, server odlučuje ko dobija termin. Pored toga, zakup traje od 1 do 14 dana, besplatno otkazivanje je moguće najkasnije 48h pre preuzimanja, a predmet se ne pojavljuje u katalogu dok ga osoblje ne verifikuje.
+1. **Uloge.** Zakupac pretražuje katalog, šalje zahteve i upravlja svojim zakupima. U punom sistemu vlasnik oglašava predmete, a osoblje proverava autentičnost i rešava sporove. KT2 demo koristi uloge zakupca i osoblja.
+2. **Stanja.** Glavni tok zakupa je zahtev → odobren → plaćen → preuzet → vraćen → završen. Zakup može biti i odbijen, otkazan ili sporan.
+3. **Pravila.** Zakup traje od 1 do 14 dana, a isti predmet ne može biti zakupljen u preklapajućim terminima. Vreme do preuzimanja određuje da li je otkazivanje besplatno. Plan teme obuhvata i verifikaciju predmeta pre objavljivanja.
+4. **Rad bez mreže.** Planirana funkcionalnost je zapisnik o primopredaji sa fotografijama i potvrdom obe strane, uz lokalno čuvanje do ponovnog povezivanja.
+5. **Posao za osoblje.** Backoffice prikazuje zakupe i omogućava obradu zahteva i sporova. Tema predviđa i red predmeta za verifikaciju i poređenje fotografija kod spora.
+6. **Javni sadržaj.** Katalog sa fotografijama, cenama, depozitom i dostupnošću može da se pregleda bez prijave.
 
-### 4. Rad bez mreže
-Zapisnik o primopredaji, sa fotografijama stanja predmeta i potvrdom obe strane, pravi se u mobilnoj aplikaciji i bez signala, na primer u garaži ili podzemnom prolazu. Zapisnik se čuva lokalno i šalje serveru čim se mreža vrati.
+### Struktura repozitorijuma
 
-### 5. Posao za osoblje
-Osoblje u backoffice-u pregleda red predmeta koji čekaju verifikaciju i listu otvorenih sporova, gde upoređuje fotografije sa preuzimanja i vraćanja. Za taj rad sa većim brojem zapisa i fotografija potreban je veći ekran.
+| Putanja | Namena |
+| --- | --- |
+| `apps/mobile` | Flutter aplikacija za zakupce |
+| `apps/backoffice` | Flutter aplikacija za osoblje na Windowsu i u pregledaču |
+| `apps/server` | Dart server na Relic-u 1.2.0 |
+| `packages/domain` | Modeli, pravila, prava nad zakupom i port repozitorijuma |
+| `packages/blocs` | Zajednički Bloc za učitavanje i izmene zakupa |
+| `packages/api_contract` | API putanje i DTO klase |
+| `packages/api_mapping` | Prevod između API ugovora i domena |
+| `packages/api_client` | Zajednički HTTP klijent i repozitorijum zakupa |
+| `packages/session_storage` | Port i platformsko skladište sesije |
+| `packages/ui_text` | Poruke na srpskom za oba klijenta |
+| `db` | Šema PostgreSQL-a, demo podaci, zaštita termina i sesije |
 
-### 6. Javni sadržaj
-Katalog predmeta sa fotografijama, cenom po danu, depozitom i kalendarom dostupnosti vidljiv je bez prijave. Ima smisla za pretraživače, jer ljudi traže upravo ovakve upite, na primer „iznajmljivanje Dior torbe Beograd“.
+## KT1 — Dva klijenta nad istim domenom
 
+U KT1 su napravljeni mobilna aplikacija, backoffice i zajednički Dart domen. Klijenti su koristili odvojene demo podatke u memoriji.
 
-## Struktura repozitorijuma
-Repozitorijum je monorepo sa pub workspace-om:
+- **Mobilna aplikacija.** Katalog sa pretragom i filterima, detalj predmeta sa fotografijom, izbor termina i validacija, pregled sopstvenih zakupa i akcije nad njima.
+- **Backoffice.** Tabela zakupa sa bočnim panelom, uži raspored, tastaturna navigacija i prečice, potvrda ili otkazivanje demo zakupa i simulacija greške pri učitavanju.
+- **Domen i stanje.** Tipizovani identifikatori, stanja i dozvoljeni prelazi, pravila perioda i otkazivanja, port repozitorijuma i `ZakupiBloc` za učitavanje i izmene u backoffice-u.
 
-| Folder | Šta je |
-|---|---|
-| `apps/mobile` | Flutter aplikacija za zakupce (Android, iOS) |
-| `packages/domain` | domenski paket u čistom Dartu: model, statusi zakupa sa prelazima i pravila |
+## KT2 — Server i korisnici
 
-## Pokretanje
+Relic server i PostgreSQL dele podatke između klijenata. Ugovor i mapiranje su u zajedničkim Dart paketima, a klijenti koriste isti HTTP sloj. Server proverava domenska pravila, vlasništvo i ulogu pre izmene zakupa.
+
+### Pokretanje iz čistog klona
+
+Za razvoj na Windowsu potrebni su Flutter, Docker Desktop, Android emulator i Chrome. Za Windows desktop build potreban je i Visual Studio sa paketom **Desktop development with C++**, kao i Windows **Developer Mode** za Flutter dodatke.
+
+U PowerShell-u iz korena repozitorijuma:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up --build -d
 ```
-flutter pub get          # iz korena repozitorijuma, jednom za ceo workspace
+
+Compose pri prvom pokretanju inicijalizuje PostgreSQL sa šemom, 10 predmeta, 12 zakupa u svih devet statusa i tri demo naloga. Sačekati da server bude spreman, pa proveriti:
+
+```powershell
+curl.exe --max-time 10 -i http://127.0.0.1:8080/health
+flutter pub get
+```
+
+Očekivani odgovor je `200 OK` i `Server i baza rade.` Lokalni `.env` je isključen iz Gita.
+
+#### Android emulator
+
+Pokrenuti emulator u Android Studio Device Manager-u. Iz korena repozitorijuma:
+
+```powershell
+flutter devices
 cd apps/mobile
-flutter run
+flutter run -d emulator-5554
 ```
 
-Testovi:
+Ako emulator ima drugi ID, koristiti ID iz `flutter devices`. Podrazumevana adresa servera u emulatoru je `http://10.0.2.2:8080`.
+
+#### Windows backoffice
+
+U novom terminalu iz korena repozitorijuma:
+
+```powershell
+cd apps/backoffice
+flutter run -d windows
 ```
-cd apps/mobile && flutter test
-cd packages/domain && dart test
+
+#### Backoffice u Chrome-u
+
+U novom terminalu iz korena repozitorijuma:
+
+```powershell
+cd apps/backoffice
+flutter run -d chrome --web-hostname=127.0.0.1 --web-port=5173
 ```
+
+Obe verzije backoffice-a koriste `http://127.0.0.1:8080`. Server dozvoljava web origin `http://127.0.0.1:5173` prema `BACKOFFICE_ORIGIN` iz `.env`. Adresa API-ja može da se zada i preko `--dart-define=API_URL=...`.
+
+### Demo nalozi
+
+| Aplikacija | Email | Razvojna lozinka |
+| --- | --- | --- |
+| Mobilna | `zakupac1@demo.test` | `RentDemo2026!` |
+| Mobilna | `zakupac2@demo.test` | `RentDemo2026!` |
+| Backoffice | `osoblje@demo.test` | `RentDemo2026!` |
+
+### Pravila i tokovi
+
+- Javni katalog prikazuje predmete i zauzete periode. Mobilni korisnik se prijavljuje za slanje zahteva i pregled svojih zakupa. Osoblje vidi zakupe svih zakupaca, po pet na stranici.
+- Prvi upisani zahtev zauzima termin. Početni i krajnji datum su uključeni. Server u transakciji zaključava predmet, proverava zajednička Dart pravila i upisuje zahtev. PostgreSQL ograničenje dodatno čuva pravilo od duplog upisa. Odbijeni poziv dobija `409 termin_zauzet`, a mobilna forma osvežava dostupnost.
+- Osoblje odobrava ili odbija zahtev. Zakupac može da plati ili otkaže svoj zakup ako status i pravila to dozvoljavaju. Plaćanje u KT2 koristi simulirani serverski servis. Zapis prikazuje status i istoriju koju je server sačuvao.
+- Promene se vide u drugom klijentu nakon osvežavanja. Zakupac ne može da se prijavi u backoffice, izvrši akciju osoblja ili otkaže tuđ zakup.
+- Prijava ostaje posle ponovnog pokretanja aplikacije i osvežavanja web stranice. Odjava poništava sesiju. Trajanje novih sesija podešava `SESSION_TTL_MINUTES`. Za demo isteka postaviti `1`, ponovo pokrenuti server, prijaviti se novom sesijom i osvežiti zakupe posle isteka.
+
+### Provere za odbranu
+
+Komande se pokreću iz korena repozitorijuma, sa podignutom bazom:
+
+```powershell
+dart analyze apps/server packages/domain packages/blocs packages/api_contract packages/api_mapping packages/api_client packages/session_storage packages/ui_text apps/mobile/lib apps/backoffice/lib
+docker compose exec -T server dart run apps/server/bin/provera_zakupa.dart
+
+Push-Location packages/domain
+dart test
+Pop-Location
+
+Push-Location apps/mobile
+flutter test test/poruke_test.dart
+Pop-Location
+```
+
+Za demonstraciju pokrenuti mobilnu aplikaciju i backoffice. Na telefonu poslati zahtev za slobodan termin, u backoffice-u osvežiti listu i odobriti zahtev. Na telefonu osvežiti **Moji zakupi**, platiti zakup i proveriti novi status u backoffice-u. Za proveru mrežne greške zaustaviti samo server sa `docker compose stop server`, osvežiti listu i ponovo ga pokrenuti sa `docker compose up -d server`.

@@ -1,130 +1,154 @@
 import 'dart:async';
 
-import 'package:equatable/equatable.dart';
-import 'package:domain/domain.dart';
 import 'package:bloc/bloc.dart';
+import 'package:domain/domain.dart';
+import 'package:equatable/equatable.dart';
 
 part 'zakupi_event.dart';
 part 'zakupi_state.dart';
 
-final class ZakupiBloc extends Bloc<ZakupiEvent, ZakupiState>{
-  ZakupiBloc({
-    required ZakupRepository zakupRepository,
-  }) : _zakupRepository = zakupRepository,
-      super(const ZakupiUcitavanje()) {
-
+final class ZakupiBloc extends Bloc<ZakupiEvent, ZakupiState> {
+  ZakupiBloc({required this.zakupRepository})
+    : super(const ZakupiUcitavanje()) {
     on<ZatrazeniZakupi>((event, emit) async {
       emit(const ZakupiUcitavanje());
       await _ucitajZakupe(emit);
     });
 
-    on<ObavestenjePotvrdjeno>((event,emit) {
-      final current=state;
-      if(current is ZakupiUcitani && current.obavestenje!=null){
-        emit(current.copyWith(obavestenje: null));
+    on<IzabranaStranicaZakupa>((event, emit) async {
+      final repo = zakupRepository;
+      if (state is ZakupiUcitavanje ||
+          repo is! StranicniZakupRepository ||
+          !repo.izaberiStranicu(event.broj)) {
+        return;
+      }
+
+      emit(const ZakupiUcitavanje());
+      await _ucitajZakupe(emit);
+    });
+
+    on<OsvezeniZakupi>((event, emit) async {
+      try {
+        await _ucitajZakupe(emit);
+      } finally {
+        event.zavrsi();
       }
     });
 
-    on<OsvezeniZakupi>((event,emit) async{
-      await _ucitajZakupe(emit);
-      event.zavrsi();
+    on<ObavestenjePotvrdjeno>((event, emit) {
+      final trenutno = state;
+      if (trenutno is ZakupiUcitani && trenutno.obavestenje != null) {
+        emit(
+          ZakupiUcitani(
+            zakupi: trenutno.zakupi,
+            otkazivanje: trenutno.otkazivanje,
+          ),
+        );
+      }
     });
 
     on<OtkazivanjeZakupa>((event, emit) async {
-      final current = state;
-      if (current is! ZakupiUcitani) return;
+      final trenutno = state;
+      if (trenutno is! ZakupiUcitani || trenutno.otkazivanje != null) {
+        return;
+      }
 
-      emit(current.copyWith(otkazivanje: event.id));
+      emit(ZakupiUcitani(zakupi: trenutno.zakupi, otkazivanje: event.id));
 
-      final res = await _zakupRepository.otkaziZakup(event.id);
+      final rezultat = await zakupRepository.otkaziZakup(event.id);
+      final lista = switch (state) {
+        ZakupiUcitani(:final zakupi) => zakupi,
+        _ => trenutno.zakupi,
+      };
 
-      switch (res) {
+      switch (rezultat) {
         case Uspeh(:final vrednost):
-          final otkazan = current.zakupi.firstWhere(
-                (z) => z.id == event.id,
-            orElse: () => vrednost,
+          emit(
+            ZakupiUcitani(
+              zakupi: _zameniZakup(lista, vrednost),
+              obavestenje: ZakupOtkazan(vrednost),
+            ),
           );
-
-
-          final novaLista = current.zakupi.map((z) {
-            if (z.id == event.id) {
-              return Zakup(
-                id: z.id,
-                predmet: z.predmet,
-                period: z.period,
-                istorija: z.istorija,
-                ///TREBA UBACITI PROVERU DA LI JE BESPLATNO OTKAZIVANJE
-                status:  Otkazan(otkazanoU: DateTime.now(), besplatno: true),
-              );
-            }
-            return z;
-          }).toList();
-
-          emit(current.copyWith(
-            zakupi: novaLista,
-            otkazivanje: null,
-            obavestenje: ZakupOtkazan(otkazan),
-          ));
-
         case Neuspeh(:final greska):
-          emit(current.copyWith(
-            otkazivanje: null,
-            obavestenje: OtkazivanjeOdbijeno(greska),
-          ));
+          emit(
+            ZakupiUcitani(
+              zakupi: lista,
+              obavestenje: OtkazivanjeOdbijeno(greska),
+            ),
+          );
+          await _ucitajZakupe(emit);
       }
     });
 
     on<PromenaStatusaZakupa>((event, emit) async {
+      final trenutno = state;
+      if (trenutno is! ZakupiUcitani) return;
 
-      final current = state;
-      if (current is! ZakupiUcitani) return;
-
-      final res = await _zakupRepository.promeniStatusZakupa(
+      final rezultat = await zakupRepository.promeniStatusZakupa(
         id: event.id,
         noviZakup: event.noviStatus,
       );
 
-      switch (res) {
-        case Uspeh():
-          Zakup? odobrenZakup;
-          final novaLista = current.zakupi.map((z) {
-            if (z.id == event.id) {
-              final azuriran = z.saStatusom(event.noviStatus);
+      final stanjePoslePoziva = state;
+      final lista = switch (stanjePoslePoziva) {
+        ZakupiUcitani(:final zakupi) => zakupi,
+        _ => trenutno.zakupi,
+      };
 
-              if (event.noviStatus is Odobren) {
-                odobrenZakup = azuriran;
-              }
-
-              return z.saStatusom(event.noviStatus);
-            }
-            return z;
-          }).toList();
-
-
-
-          emit(current.copyWith(zakupi: novaLista,
-              obavestenje: odobrenZakup != null ? ZakupOdobren(odobrenZakup!) : null ));
-
-        case Neuspeh():
-          break;
+      switch (rezultat) {
+        case Uspeh(:final vrednost):
+          emit(
+            ZakupiUcitani(
+              zakupi: _zameniZakup(lista, vrednost),
+              otkazivanje: stanjePoslePoziva is ZakupiUcitani
+                  ? stanjePoslePoziva.otkazivanje
+                  : null,
+              obavestenje: vrednost.status is Odobren
+                  ? ZakupOdobren(vrednost)
+                  : null,
+            ),
+          );
+        case Neuspeh(:final greska):
+          emit(
+            ZakupiUcitani(
+              zakupi: lista,
+              obavestenje: PromenaZakupaOdbijena(greska),
+            ),
+          );
+          await _ucitajZakupe(emit);
       }
     });
-
   }
-  final ZakupRepository _zakupRepository;
+
+  final ZakupRepository zakupRepository;
+
+  int get stranica => switch (zakupRepository) {
+    StranicniZakupRepository(:final stranica) => stranica,
+    _ => 0,
+  };
+
+  bool get imaSledecuStranicu => switch (zakupRepository) {
+    StranicniZakupRepository(:final imaSledecuStranicu) => imaSledecuStranicu,
+    _ => false,
+  };
 
   Future<void> _ucitajZakupe(Emitter<ZakupiState> emit) async {
-    final res =await _zakupRepository.preuzmiSveZakupe();
+    final rezultat = await zakupRepository.preuzmiSveZakupe();
 
-    switch(res){
+    switch (rezultat) {
       case Uspeh(:final vrednost):
-        if(vrednost.isEmpty){
+        if (vrednost.isEmpty) {
           emit(const ZakupiPrazno());
-          return;
+        } else {
+          emit(ZakupiUcitani(zakupi: vrednost));
         }
-        emit(ZakupiUcitani(zakupi: vrednost));
       case Neuspeh(:final greska):
         emit(ZakupiGreska(greska));
     }
   }
+
+  List<Zakup> _zameniZakup(List<Zakup> zakupi, Zakup azuriran) => [
+    for (final zakup in zakupi)
+      if (zakup.id == azuriran.id) azuriran else zakup,
+  ];
 }

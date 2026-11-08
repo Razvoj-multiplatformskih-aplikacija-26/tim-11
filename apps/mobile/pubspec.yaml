@@ -18,8 +18,22 @@ dependencies:
     path: ../../packages/domain
   flutter_localizations:
     sdk: flutter
+  flutter_bloc: ^9.1.1
+  api_client:
+    path: ../../packages/api_client
+  api_mapping:
+    path: ../../packages/api_mapping
+  api_contract:
+    path: ../../packages/api_contract
+  blocs:
+    path: ../../packages/blocs
+  ui_text:
+    path: ../../packages/ui_text
+  session_storage:
+    path: ../../packages/session_storage
 
 dev_dependencies:
+  http: ^1.6.0
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0

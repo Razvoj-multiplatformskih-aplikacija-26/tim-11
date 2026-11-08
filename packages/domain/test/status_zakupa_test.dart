@@ -38,9 +38,9 @@ void main() {
       ]);
     });
 
-    test('termin drze samo odobren, placen i preuzet zakup', () {
+    test('termin drze samo zahtev, odobren, placen i preuzet zakup', () {
       final drze = [for (final s in sviStatusi) if (s.zauzimaTermin) s.runtimeType];
-      expect(drze, [Odobren, Placen, Preuzet]);
+      expect(drze, [Zahtev, Odobren, Placen, Preuzet]);
     });
 
     test('sledeci koraci placenog zakupa su preuzimanje, vracanje i zavrsetak', () {

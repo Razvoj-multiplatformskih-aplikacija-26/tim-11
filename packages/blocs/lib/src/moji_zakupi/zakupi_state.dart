@@ -14,15 +14,15 @@ sealed class ZakupiObavestenje extends Equatable {
   List<Object?> get props => [];
 }
 
-final class ZakupiUcitavanje extends ZakupiState{
+final class ZakupiUcitavanje extends ZakupiState {
   const ZakupiUcitavanje();
 }
 
-final class ZakupiPrazno extends ZakupiState{
+final class ZakupiPrazno extends ZakupiState {
   const ZakupiPrazno();
 }
 
-final class ZakupiGreska extends ZakupiState{
+final class ZakupiGreska extends ZakupiState {
   final Object greska;
 
   const ZakupiGreska(this.greska);
@@ -31,12 +31,16 @@ final class ZakupiGreska extends ZakupiState{
   List<Object?> get props => [greska];
 }
 
-final class ZakupiUcitani extends ZakupiState{
+final class ZakupiUcitani extends ZakupiState {
   final List<Zakup> zakupi;
   final ZakupId? otkazivanje;
   final ZakupiObavestenje? obavestenje;
 
-  const ZakupiUcitani({required this.zakupi,this.otkazivanje,this.obavestenje});
+  const ZakupiUcitani({
+    required this.zakupi,
+    this.otkazivanje,
+    this.obavestenje,
+  });
 
   ZakupiUcitani copyWith({
     List<Zakup>? zakupi,
@@ -79,4 +83,13 @@ final class ZakupOdobren extends ZakupiObavestenje {
 
   @override
   List<Object?> get props => [zakup];
+}
+
+final class PromenaZakupaOdbijena extends ZakupiObavestenje {
+  const PromenaZakupaOdbijena(this.greska);
+
+  final DomenskaGreska greska;
+
+  @override
+  List<Object?> get props => [greska];
 }

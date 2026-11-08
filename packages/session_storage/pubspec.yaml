@@ -1,0 +1,12 @@
+name: session_storage
+publish_to: none
+
+environment:
+  sdk: ^3.13.0
+
+resolution: workspace
+
+dependencies:
+  api_contract:
+    path: ../api_contract
+  flutter_secure_storage: ^11.2.0

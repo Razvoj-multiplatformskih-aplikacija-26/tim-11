@@ -2,15 +2,16 @@ import 'package:domain/domain.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../data/zakupi_store.dart';
 import '../text/poruke_gresaka.dart';
 import '../widgets/slika_predmeta.dart';
 import '../widgets/status_oznaka.dart';
 import '../widgets/timeline_zakupa.dart';
 
+import 'package:blocs/blocs.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
 final _datum = DateFormat('d. M. yyyy.');
 
-/// Ekran sa detaljem jednog zakupa
 class ZakupDetaljScreen extends StatelessWidget {
   const ZakupDetaljScreen({super.key, required this.id});
 
@@ -18,18 +19,49 @@ class ZakupDetaljScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Sluša store, pa se ekran sam osveži kad se status promeni.
-    return ListenableBuilder(
-      listenable: zakupiStore,
-      builder: (context, _) {
-        final zakup = zakupiStore.nadji(id);
-        if (zakup == null) {
-          return Scaffold(
-            appBar: AppBar(),
-            body: const Center(child: Text('Zakup ne postoji.')),
-          );
+    return BlocConsumer<ZakupiBloc, ZakupiState>(
+      listenWhen: (prethodno, sledece) =>
+          sledece is ZakupiUcitani &&
+          sledece.obavestenje != null &&
+          (prethodno is! ZakupiUcitani ||
+              prethodno.obavestenje != sledece.obavestenje),
+      listener: (context, stanje) {
+        final obavestenje = (stanje as ZakupiUcitani).obavestenje;
+        final poruka = switch (obavestenje) {
+          ZakupOtkazan(:final zakup) when zakup.id == id => 'Zakup je otkazan.',
+          OtkazivanjeOdbijeno(:final greska) when greska is DomenskaGreska =>
+            greska.poruka,
+          PromenaZakupaOdbijena(:final greska) => greska.poruka,
+          _ => null,
+        };
+
+        if (poruka == null) return;
+
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(poruka)));
+        context.read<ZakupiBloc>().add(const ObavestenjePotvrdjeno());
+      },
+      builder: (context, stanje) {
+        if (stanje is ZakupiUcitani) {
+          for (final zakup in stanje.zakupi) {
+            if (zakup.id == id) {
+              return _Sadrzaj(zakup: zakup);
+            }
+          }
         }
-        return _Sadrzaj(zakup: zakup);
+
+        return Scaffold(
+          appBar: AppBar(title: const Text('Detalj zakupa')),
+          body: Center(
+            child: switch (stanje) {
+              ZakupiUcitavanje() => const CircularProgressIndicator(),
+              ZakupiGreska(:final greska) when greska is DomenskaGreska => Text(
+                greska.poruka,
+              ),
+              _ => const Text('Zakup nije dostupan.'),
+            },
+          ),
+        );
       },
     );
   }
@@ -81,10 +113,12 @@ class _Sadrzaj extends StatelessWidget {
           _Red('Vlasnik', predmet.vlasnik),
 
           // Podaci koje nosi sam status (sealed klasa iz domena)
-          if (zakup.status case Odbijen(:final razlog)) _Red('Razlog odbijanja', razlog),
+          if (zakup.status case Odbijen(:final razlog))
+            _Red('Razlog odbijanja', razlog),
           if (zakup.status case Otkazan(:final besplatno))
             _Red('Otkazivanje', besplatno ? 'besplatno' : 'uz naknadu'),
-          if (zakup.status case Sporan(:final opis)) _Red('Opis problema', opis),
+          if (zakup.status case Sporan(:final opis))
+            _Red('Opis problema', opis),
 
           const SizedBox(height: 24),
           Text('Tok zakupa', style: tekst.titleMedium),
@@ -135,7 +169,9 @@ class _Sadrzaj extends StatelessWidget {
     );
 
     if (potvrdjeno != true || !context.mounted) return;
-    _primeni(context, platiZakup(zakup), 'Zakup je plaćen.');
+    context.read<ZakupiBloc>().add(
+      PromenaStatusaZakupa(id: zakup.id, noviStatus: const Placen()),
+    );
   }
 
   Future<void> _otkazi(BuildContext context) async {
@@ -149,9 +185,9 @@ class _Sadrzaj extends StatelessWidget {
         content: Text(
           besplatno
               ? 'Otkazivanje je besplatno jer do preuzimanja ima bar '
-                  '$danaZaBesplatnoOtkazivanje dana. Ova radnja ne može da se poništi.'
+                    '$danaZaBesplatnoOtkazivanje dana. Ova radnja ne može da se poništi.'
               : 'Do preuzimanja je ostalo manje od $danaZaBesplatnoOtkazivanje dana, '
-                  'pa otkazivanje nije besplatno. Ova radnja ne može da se poništi.',
+                    'pa otkazivanje nije besplatno. Ova radnja ne može da se poništi.',
         ),
         actions: [
           TextButton(
@@ -168,20 +204,7 @@ class _Sadrzaj extends StatelessWidget {
 
     // Posle await proveravamo da li ekran još postoji
     if (potvrdjeno != true || !context.mounted) return;
-    _primeni(context, otkaziZakup(zakup, sada: DateTime.now()), 'Zakup je otkazan.');
-  }
-
-  /// Uspeh: store dobija novu verziju zakupa. Neuspeh: prikaži poruku greške.
-  void _primeni(BuildContext context, Rezultat<Zakup> rezultat, String porukaUspeha) {
-    final String poruka;
-    switch (rezultat) {
-      case Uspeh(:final vrednost):
-        zakupiStore.azuriraj(vrednost);
-        poruka = porukaUspeha;
-      case Neuspeh(:final greska):
-        poruka = greska.poruka;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(poruka)));
+    context.read<ZakupiBloc>().add(OtkazivanjeZakupa(zakup.id));
   }
 }
 

@@ -1,0 +1,13 @@
+name: api_mapping
+publish_to: none
+
+environment:
+  sdk: ^3.13.0
+
+resolution: workspace
+
+dependencies:
+  api_contract:
+    path: ../api_contract
+  domain:
+    path: ../domain

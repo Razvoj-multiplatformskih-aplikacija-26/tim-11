@@ -1,7 +1,8 @@
 import 'package:domain/domain.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../data/lazni_podaci.dart';
+
+import '../widgets/ucitavanje_kataloga.dart';
 import '../text/nazivi.dart';
 import '../widgets/slika_predmeta.dart';
 
@@ -11,15 +12,22 @@ class PredmetDetaljScreen extends StatelessWidget {
   final PredmetId id;
 
   @override
-  Widget build(BuildContext context) {
-    final predmet = nadjiPredmet(id);
-    if (predmet == null) {
+  Widget build(BuildContext context) => UcitavanjeKataloga(
+    builder: (context, predmeti) {
+      for (final predmet in predmeti) {
+        if (predmet.id == id) {
+          return _prikaziPredmet(context, predmet);
+        }
+      }
+
       return Scaffold(
         appBar: AppBar(),
         body: const Center(child: Text('Predmet ne postoji.')),
       );
-    }
+    },
+  );
 
+  Widget _prikaziPredmet(BuildContext context, Predmet predmet) {
     final tekst = Theme.of(context).textTheme;
 
     return Scaffold(
@@ -44,7 +52,7 @@ class PredmetDetaljScreen extends StatelessWidget {
           _Red('Depozit', '${predmet.depozit} €'),
           _Red('Vlasnik', predmet.vlasnik),
           const SizedBox(height: 24),
-           FilledButton.icon(
+          FilledButton.icon(
             onPressed: () => context.push('/predmet/${predmet.id}/zahtev'),
             icon: const Icon(Icons.event_available),
             label: const Text('Iznajmi'),

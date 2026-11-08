@@ -8,7 +8,6 @@ import '../rezultat.dart';
 DateTime samoDatum(DateTime vreme) => DateTime.utc(vreme.year, vreme.month, vreme.day);
 
 /// Period zakupa, od prvog do poslednjeg dana, oba ukljucena.
-/// Nastaje samo kroz [parse]: privatni konstruktor znaci da period
 /// koji krsi pravilo trajanja ne moze ni da postoji
 @immutable
 final class PeriodZakupa {
@@ -35,6 +34,20 @@ final class PeriodZakupa {
     }
     return Uspeh(PeriodZakupa._(pocetak, kraj));
   }
+
+  factory PeriodZakupa.izBaze({
+  required DateTime od,
+  required DateTime doDatuma,
+}) {
+  final pocetak = samoDatum(od);
+  final kraj = samoDatum(doDatuma);
+
+  if (kraj.isBefore(pocetak)) {
+    throw ArgumentError('Kraj sačuvanog perioda je pre početka.');
+  }
+
+  return PeriodZakupa._(pocetak, kraj);
+}
 
   @override
   bool operator ==(Object other) => other is PeriodZakupa && other.od == od && other.doDatuma == doDatuma;

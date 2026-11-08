@@ -30,10 +30,10 @@ void main() {
       expect(proveri(7, 9, postojeci), const Neuspeh<PeriodZakupa>(TerminZauzet()));
     });
 
-    test('zahtev koji jos nije odobren ne zauzima termin', () {
-      final postojeci = [testZakup(od: 5, doDana: 7)];
-      expect(proveri(5, 7, postojeci).jeUspeh, isTrue);
-    });
+    test('zahtev zauzima termin i pre odobrenja', () {
+  final postojeci = [testZakup(od: 5, doDana: 7)];
+  expect(proveri(7, 9, postojeci), const Neuspeh<PeriodZakupa>(TerminZauzet()));
+});
 
     test('zakup drugog predmeta ne smeta', () {
       final postojeci = [testZakup(od: 5, doDana: 7, status: const Placen(), predmet: drugiPredmet)];
@@ -49,7 +49,7 @@ void main() {
         testZakup(od: 7, doDana: 8, status: const Preuzet()),
         testZakup(od: 9, doDana: 10, status: const Placen(), predmet: drugiPredmet),
       ];
-      expect(zauzetiPeriodi(testPredmet.id, zakupi), [period(1, 2), period(7, 8)]);
+      expect(zauzetiPeriodi(testPredmet.id, zakupi), [period(1, 2), period(4, 5),  period(7, 8)]);
     });
   });
 

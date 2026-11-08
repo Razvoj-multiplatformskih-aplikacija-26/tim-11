@@ -1,0 +1,7 @@
+name: api_contract
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.7.0
