@@ -26,7 +26,8 @@ final class Uspeh<T> extends Rezultat<T> {
   final T vrednost;
 
   @override
-  bool operator ==(Object other) => other is Uspeh<T> && other.vrednost == vrednost;
+  bool operator ==(Object other) =>
+      other is Uspeh<T> && other.vrednost == vrednost;
 
   @override
   int get hashCode => Object.hash(Uspeh, vrednost);
@@ -41,7 +42,8 @@ final class Neuspeh<T> extends Rezultat<T> {
   final DomenskaGreska greska;
 
   @override
-  bool operator ==(Object other) => other is Neuspeh<T> && other.greska == greska;
+  bool operator ==(Object other) =>
+      other is Neuspeh<T> && other.greska == greska;
 
   @override
   int get hashCode => Object.hash(Neuspeh, greska);

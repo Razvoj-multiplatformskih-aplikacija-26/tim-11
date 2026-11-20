@@ -1,5 +1,4 @@
-import 'package:api_client/api_client.dart';
-import 'package:api_mapping/api_mapping.dart';
+import 'package:blocs/blocs.dart';
 import 'package:domain/domain.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -14,150 +13,24 @@ import '../widgets/ucitavanje_kataloga.dart';
 
 final _datum = DateFormat('d. M. yyyy.');
 
-class ZahtevFormaScreen extends StatefulWidget {
+class ZahtevFormaScreen extends StatelessWidget {
   const ZahtevFormaScreen({super.key, required this.predmetId});
 
   final PredmetId predmetId;
 
   @override
-  State<ZahtevFormaScreen> createState() => _ZahtevFormaScreenState();
-}
-
-class _ZahtevFormaScreenState extends State<ZahtevFormaScreen> {
-  final _formKey = GlobalKey<FormState>();
-
-  DateTimeRange? _period;
-  bool _slanjeUToku = false;
-  late Future<List<PeriodZakupa>> _dostupnost;
-  List<PeriodZakupa> _zauzetiPeriodi = const [];
-
-  @override
-  void initState() {
-    super.initState();
-    _dostupnost = _ucitajDostupnost();
-  }
-
-  Future<List<PeriodZakupa>> _ucitajDostupnost() async {
-    final odgovor = await context.read<RentApi>().preuzmiZauzetePeriode(
-      widget.predmetId.value,
-    );
-
-    final periodi = [
-      for (final period in odgovor.periodi)
-        PeriodZakupa.izBaze(
-          od: DateTime.parse(period.datumOd),
-          doDatuma: DateTime.parse(period.datumDo),
-        ),
-    ];
-
-    if (mounted) _zauzetiPeriodi = periodi;
-    return periodi;
-  }
-
-  void _osveziDostupnost() {
-    setState(() => _dostupnost = _ucitajDostupnost());
-  }
-
-  Rezultat<PeriodZakupa> _proveri(Predmet predmet, DateTimeRange izabrano) {
-    final rezultat = proveriZahtev(
-      predmet: predmet,
-      od: izabrano.start,
-      doDatuma: izabrano.end,
-      danas: DateTime.now(),
-      postojeciZakupi: const [],
-    );
-
-    final period = rezultat.vrednostIliNull;
-    if (period != null && _zauzetiPeriodi.any(period.preklapaSe)) {
-      return const Neuspeh<PeriodZakupa>(TerminZauzet());
-    }
-
-    return rezultat;
-  }
-
-  Future<void> _izaberiPeriod(FormFieldState<DateTimeRange> polje) async {
-    final danas = DateTime.now();
-    final izabrano = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(danas.year, danas.month, danas.day),
-      lastDate: DateTime(danas.year + 1, danas.month, danas.day),
-      initialDateRange: _period,
-      helpText: 'Izaberi period zakupa',
-      saveText: 'Potvrdi',
-    );
-
-    if (!mounted || !polje.mounted || izabrano == null) return;
-
-    setState(() => _period = izabrano);
-    polje.didChange(izabrano);
-    polje.validate();
-  }
-
-  Future<void> _posalji(Predmet predmet) async {
-    if (_slanjeUToku || _formKey.currentState?.validate() != true) return;
-
-    final izabrano = _period;
-    if (izabrano == null) return;
-
-    final period = _proveri(predmet, izabrano).vrednostIliNull;
-    if (period == null) return;
-
-    final api = context.read<RentApi>();
-    final sesija = context.read<MobilnaSesija>();
-    setState(() => _slanjeUToku = true);
-
-    try {
-      final prijavljen = await zatraziPrijavuZakupca(context);
-      if (!mounted || !prijavljen) return;
-
-      final token = sesija.token;
-      if (token == null) return;
-
-      final zahtev = noviZakupZaApi((
-        predmetId: predmet.id,
-        datumOd: period.od,
-        datumDo: period.doDatuma,
-      ));
-
-      try {
-        await api.napraviZakup(zahtev, token: token);
-      } on ApiIzuzetak catch (greska) {
-        if (greska.httpStatus == 401) {
-          try {
-            await sesija.zaboraviToken(token);
-          } on Exception {
-            // Sesija je već uklonjena iz memorije.
-          }
-        }
-
-        if (!mounted) return;
-
-        if (greska.greska.kod == 'termin_zauzet') {
-          _osveziDostupnost();
-        }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(greskaIzApi(greska.greska).poruka)),
-        );
-        return;
-      }
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Zahtev je poslat.')));
-      context.go('/');
-    } finally {
-      if (mounted) setState(() => _slanjeUToku = false);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) => UcitavanjeKataloga(
     builder: (context, predmeti) {
       for (final predmet in predmeti) {
-        if (predmet.id == widget.predmetId) {
-          return _prikaziFormu(context, predmet);
+        if (predmet.id == predmetId) {
+          return BlocProvider(
+            key: ValueKey(predmet.id.value),
+            create: (context) => NoviZakupBloc(
+              repository: context.read<NoviZakupRepository>(),
+              predmet: predmet,
+            )..add(const DostupnostZatrazena()),
+            child: _FormaZakupa(predmet: predmet),
+          );
         }
       }
 
@@ -167,136 +40,220 @@ class _ZahtevFormaScreenState extends State<ZahtevFormaScreen> {
       );
     },
   );
+}
 
-  Widget _prikaziFormu(BuildContext context, Predmet predmet) {
-    final tekst = Theme.of(context).textTheme;
-    final period = _period;
-    final brojDana = period == null
-        ? 0
-        : samoDatum(period.end).difference(samoDatum(period.start)).inDays + 1;
+class _FormaZakupa extends StatefulWidget {
+  const _FormaZakupa({required this.predmet});
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Zahtev za zakup')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Row(
-              children: [
-                SlikaPredmeta(predmet: predmet, sirina: 64, visina: 64),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(predmet.brend, style: tekst.labelMedium),
-                      Text(predmet.naziv, style: tekst.titleMedium),
-                      Text('${predmet.cenaPoDanu} € / dan'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Text('Period zakupa', style: tekst.titleSmall),
-            const SizedBox(height: 8),
-            _prikaziDostupnost(),
-            const SizedBox(height: 8),
-            FormField<DateTimeRange>(
-              initialValue: period,
-              validator: (izabrano) {
-                if (izabrano == null) return 'Izaberi datume zakupa.';
+  final Predmet predmet;
 
-                return switch (_proveri(predmet, izabrano)) {
-                  Uspeh() => null,
-                  Neuspeh(:final greska) => greska.poruka,
-                };
-              },
-              builder: (polje) => Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: _slanjeUToku
-                        ? null
-                        : () => _izaberiPeriod(polje),
-                    icon: const Icon(Icons.date_range),
-                    label: Text(
-                      period == null
-                          ? 'Izaberi datume'
-                          : '${_datum.format(period.start)} – '
-                                '${_datum.format(period.end)}',
-                    ),
-                  ),
-                  if (polje.hasError)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(
-                        polje.errorText!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (period != null) ...[
-              const SizedBox(height: 16),
-              _Red('Broj dana', '$brojDana'),
-              _Red('Ukupno', '${brojDana * predmet.cenaPoDanu} €'),
-              _Red('Depozit (vraća se)', '${predmet.depozit} €'),
-            ],
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _slanjeUToku ? null : () => _posalji(predmet),
-              child: Text(
-                _slanjeUToku ? 'Slanje je u toku…' : 'Pošalji zahtev',
-              ),
-            ),
-          ],
-        ),
-      ),
+  @override
+  State<_FormaZakupa> createState() => _FormaZakupaState();
+}
+
+class _FormaZakupaState extends State<_FormaZakupa> {
+  bool _trazenoSlanje = false;
+  bool _prijavaUToku = false;
+
+  Future<void> _izaberiPeriod(NoviZakupStanje stanje) async {
+    final danas = DateTime.now();
+
+    final izabrano = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(danas.year, danas.month, danas.day),
+      lastDate: DateTime(danas.year + 1, danas.month, danas.day),
+      initialDateRange: stanje.od != null && stanje.doDatuma != null
+          ? DateTimeRange(start: stanje.od!, end: stanje.doDatuma!)
+          : null,
+      helpText: 'Izaberi period zakupa',
+      saveText: 'Potvrdi',
+    );
+
+    if (!mounted || izabrano == null) return;
+
+    context.read<NoviZakupBloc>().add(
+      PeriodZakupaIzabran(od: izabrano.start, doDatuma: izabrano.end),
     );
   }
 
-  Widget _prikaziDostupnost() {
-    return FutureBuilder<List<PeriodZakupa>>(
-      future: _dostupnost,
+  Future<void> _posalji() async {
+    final bloc = context.read<NoviZakupBloc>();
+    final stanje = bloc.state;
+
+    if (_prijavaUToku || stanje.slanje || stanje.ucitavanje) return;
+
+    setState(() => _trazenoSlanje = true);
+
+    if (stanje.od == null || stanje.doDatuma == null) return;
+
+    if (stanje.provera?.jeUspeh != true) {
+      bloc.add(const SlanjeZakupaZatrazeno());
+      return;
+    }
+
+    setState(() => _prijavaUToku = true);
+
+    try {
+      final prijavljen = await zatraziPrijavuZakupca(context);
+      if (!mounted || !prijavljen) return;
+
+      bloc.add(const SlanjeZakupaZatrazeno());
+    } finally {
+      if (mounted) setState(() => _prijavaUToku = false);
+    }
+  }
+
+  Future<void> _prikaziPromenu(
+    BuildContext context,
+    NoviZakupStanje stanje,
+  ) async {
+    if (stanje.poslatId != null) {
+      context.read<ZakupiBloc>().add(const ZatrazeniZakupi());
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Zahtev je poslat.')));
+
+      context.go('/zakupi');
+      return;
+    }
+
+    final greska = stanje.greska;
+    if (greska == null) return;
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(greska.poruka)));
+
+    if (greska case ServerskaGreska(kod: 'potrebna_prijava')) {
+      final sesija = context.read<MobilnaSesija>();
+      final token = sesija.token;
+
+      if (token != null) {
+        try {
+          await sesija.zaboraviToken(token);
+        } on Exception {
+          // Sesija je već uklonjena iz memorije.
+        }
+      }
+
+      if (!mounted || !context.mounted) return;
+      await zatraziPrijavuZakupca(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<NoviZakupBloc, NoviZakupStanje>(
+      listenWhen: (prethodno, sledece) =>
+          prethodno.greska != sledece.greska ||
+          prethodno.poslatId != sledece.poslatId,
+      listener: _prikaziPromenu,
       builder: (context, stanje) {
-        if (stanje.connectionState != ConnectionState.done) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: LinearProgressIndicator(),
-          );
-        }
+        final predmet = widget.predmet;
+        final tekst = Theme.of(context).textTheme;
+        final zauzeto = stanje.slanje || stanje.ucitavanje || _prijavaUToku;
 
-        final periodi = stanje.data;
-        if (periodi == null) {
-          return TextButton(
-            onPressed: _osveziDostupnost,
-            child: const Text('Dostupnost nije učitana. Pokušaj ponovo.'),
-          );
-        }
+        final period = stanje.provera?.vrednostIliNull;
+        final greskaPerioda = stanje.provera?.greskaIliNull;
 
-        if (periodi.isEmpty) {
-          return const Text('Nema zauzetih termina.');
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Zauzeti termini:'),
-            for (final period in periodi)
-              Text(
-                '${_datum.format(period.od)} – '
-                '${_datum.format(period.doDatuma)}',
+        return Scaffold(
+          appBar: AppBar(title: const Text('Zahtev za zakup')),
+          body: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Row(
+                children: [
+                  SlikaPredmeta(predmet: predmet, sirina: 64, visina: 64),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(predmet.brend, style: tekst.labelMedium),
+                        Text(predmet.naziv, style: tekst.titleMedium),
+                        Text('${predmet.cenaPoDanu} € / dan'),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-          ],
+              const SizedBox(height: 24),
+              Text('Period zakupa', style: tekst.titleSmall),
+              const SizedBox(height: 8),
+              if (stanje.ucitavanje)
+                const LinearProgressIndicator()
+              else ...[
+                if (stanje.greska != null)
+                  Text(
+                    stanje.greska!.poruka,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                if (stanje.periodi.isNotEmpty) ...[
+                  const Text('Zauzeti termini:'),
+                  for (final period in stanje.periodi)
+                    Text(
+                      '${_datum.format(period.od)} – '
+                      '${_datum.format(period.doDatuma)}',
+                    ),
+                ],
+                TextButton.icon(
+                  onPressed: zauzeto
+                      ? null
+                      : () {
+                          context.read<NoviZakupBloc>().add(
+                            const DostupnostZatrazena(),
+                          );
+                        },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Osveži dostupnost'),
+                ),
+              ],
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: zauzeto ? null : () => _izaberiPeriod(stanje),
+                icon: const Icon(Icons.date_range),
+                label: Text(
+                  stanje.od == null || stanje.doDatuma == null
+                      ? 'Izaberi datume'
+                      : '${_datum.format(stanje.od!)} – '
+                            '${_datum.format(stanje.doDatuma!)}',
+                ),
+              ),
+              if (_trazenoSlanje && stanje.od == null)
+                _tekstGreske('Izaberi datume zakupa.'),
+              if (greskaPerioda != null) _tekstGreske(greskaPerioda.poruka),
+              if (period != null) ...[
+                const SizedBox(height: 16),
+                _Red('Broj dana', '${period.brojDana}'),
+                _Red('Ukupno', '${period.brojDana * predmet.cenaPoDanu} €'),
+                _Red('Depozit (vraća se)', '${predmet.depozit} €'),
+              ],
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: zauzeto ? null : _posalji,
+                child: Text(
+                  stanje.slanje
+                      ? 'Slanje je u toku…'
+                      : _prijavaUToku
+                      ? 'Prijava je u toku…'
+                      : 'Pošalji zahtev',
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
   }
+
+  Widget _tekstGreske(String poruka) => Padding(
+    padding: const EdgeInsets.only(top: 6),
+    child: Text(
+      poruka,
+      style: TextStyle(color: Theme.of(context).colorScheme.error),
+    ),
+  );
 }
 
 class _Red extends StatelessWidget {
@@ -311,14 +268,7 @@ class _Red extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Expanded(
-            child: Text(
-              naziv,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
+          Expanded(child: Text(naziv)),
           Text(vrednost, style: const TextStyle(fontWeight: FontWeight.w600)),
         ],
       ),

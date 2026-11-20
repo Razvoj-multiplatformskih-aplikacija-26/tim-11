@@ -23,12 +23,14 @@ class BackofficeShortcuts extends StatelessWidget {
     if (zakupi.isEmpty) return;
 
     final trenutniIndeks = zakupi.indexWhere((zakup) => zakup.id == selectedId);
+
     if (trenutniIndeks == -1) {
       onSelectionChanged(zakupi.first.id);
       return;
     }
 
     final noviIndeks = trenutniIndeks + smer;
+
     if (noviIndeks >= 0 && noviIndeks < zakupi.length) {
       onSelectionChanged(zakupi[noviIndeks].id);
     }
@@ -59,20 +61,33 @@ class BackofficeShortcuts extends StatelessWidget {
         }
 
         final indeks = zakupi.indexWhere((zakup) => zakup.id == selectedId);
+
         if (indeks == -1) return KeyEventResult.ignored;
 
         final zakup = zakupi[indeks];
-        if (zakup.status is! Zahtev) return KeyEventResult.ignored;
 
-        if (taster == LogicalKeyboardKey.enter) {
+        if (taster == LogicalKeyboardKey.enter &&
+            imaPravoNaAkciju(
+              uloga: Uloga.osoblje,
+              akcija: AkcijaZakupa.odobri,
+              jeSvojZakup: false,
+            ) &&
+            mozePrelaz(zakup.status, const Odobren())) {
           context.read<ZakupiBloc>().add(
             PromenaStatusaZakupa(id: zakup.id, noviStatus: const Odobren()),
           );
+
           return KeyEventResult.handled;
         }
 
-        if (taster == LogicalKeyboardKey.delete ||
-            taster == LogicalKeyboardKey.backspace) {
+        if ((taster == LogicalKeyboardKey.delete ||
+                taster == LogicalKeyboardKey.backspace) &&
+            imaPravoNaAkciju(
+              uloga: Uloga.osoblje,
+              akcija: AkcijaZakupa.odbij,
+              jeSvojZakup: false,
+            ) &&
+            mozePrelaz(zakup.status, const Odbijen(razlog: ''))) {
           odbijZakup(context, zakup);
           return KeyEventResult.handled;
         }

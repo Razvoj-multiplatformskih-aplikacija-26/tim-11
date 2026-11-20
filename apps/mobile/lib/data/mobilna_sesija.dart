@@ -6,6 +6,7 @@ final class MobilnaSesija {
   MobilnaSesija(this._api);
 
   final RentApi _api;
+
   final SkladisteSesije _skladiste = const BezbednoSkladisteSesije(
     kljuc: 'rent_a_luxury_mobilna_sesija',
   );
@@ -17,6 +18,7 @@ final class MobilnaSesija {
     if (sesija == null) return null;
 
     final isticeU = DateTime.tryParse(sesija.isticeU);
+
     if (isticeU == null || !isticeU.isAfter(DateTime.now())) {
       return null;
     }
@@ -27,6 +29,7 @@ final class MobilnaSesija {
   Future<void> obnovi() async {
     try {
       final sacuvana = await _skladiste.ucitaj();
+
       if (sacuvana?.uloga == 'zakupac') {
         _sesija = sacuvana;
       }
@@ -43,6 +46,10 @@ final class MobilnaSesija {
       PrijavaZahtev(email: email, lozinka: lozinka, aplikacija: 'mobile'),
     );
 
+    if (sesija.token == null) {
+      throw const ApiIzuzetak(ApiGreska(kod: 'neispravan_odgovor_servera'));
+    }
+
     try {
       await _skladiste.sacuvaj(sesija);
     } on Exception {
@@ -56,8 +63,11 @@ final class MobilnaSesija {
     final sesija = _sesija;
     if (sesija == null) return;
 
-    await _api.odjaviSe(token: sesija.token);
-    await zaboraviToken(sesija.token);
+    final token = sesija.token;
+    if (token == null) return;
+
+    await _api.odjaviSe(token: token);
+    await zaboraviToken(token);
   }
 
   Future<void> zaboraviToken(String odbijeniToken) async {

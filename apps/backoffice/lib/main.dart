@@ -4,10 +4,9 @@ import 'package:blocs/blocs.dart';
 import 'package:domain/domain.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:session_storage/session_storage.dart';
 
 import 'screens/schedule_screen.dart';
-
-import 'package:session_storage/session_storage.dart';
 
 void main() {
   runApp(const BackofficeApp());
@@ -63,11 +62,11 @@ class _BackofficeSesijaState extends State<_BackofficeSesija> {
 
   PrijavaOdgovor? _sesija;
   bool _prijavaUToku = false;
+  bool _odjavaUToku = false;
+  bool _obnovaUToku = true;
   String? _greska;
 
   SkladisteSesije get _skladiste => widget.skladiste;
-
-  bool _obnovaUToku = true;
 
   @override
   void initState() {
@@ -77,11 +76,28 @@ class _BackofficeSesijaState extends State<_BackofficeSesija> {
 
   Future<void> _obnoviSesiju() async {
     try {
-      final sacuvana = await _skladiste.ucitaj();
+      final PrijavaOdgovor? sacuvana;
+
+      if (_api.sesijaUKolacicu) {
+        // Uklanja token koji je prethodna verzija čuvala u pregledaču.
+        await _skladiste.obrisi();
+        sacuvana = await _api.trenutnaSesija();
+      } else {
+        sacuvana = await _skladiste.ucitaj();
+      }
+
       if (!mounted) return;
 
       setState(() {
         _sesija = sacuvana?.uloga == 'osoblje' ? sacuvana : null;
+      });
+    } on ApiIzuzetak catch (greska) {
+      if (!mounted) return;
+
+      setState(() {
+        _greska = greska.httpStatus == 401
+            ? null
+            : 'Server trenutno nije dostupan. Pokušaj da se prijaviš.';
       });
     } on Exception {
       if (!mounted) return;
@@ -96,6 +112,7 @@ class _BackofficeSesijaState extends State<_BackofficeSesija> {
 
     final email = _email.text.trim();
     final lozinka = _lozinka.text;
+
     if (email.isEmpty || lozinka.isEmpty) {
       setState(() => _greska = 'Unesi email i lozinku.');
       return;
@@ -110,13 +127,18 @@ class _BackofficeSesijaState extends State<_BackofficeSesija> {
       final sesija = await _api.prijaviSe(
         PrijavaZahtev(email: email, lozinka: lozinka, aplikacija: 'backoffice'),
       );
-      await _skladiste.sacuvaj(sesija);
+
+      if (!_api.sesijaUKolacicu) {
+        await _skladiste.sacuvaj(sesija);
+      }
 
       if (!mounted) return;
+
       _lozinka.clear();
       setState(() => _sesija = sesija);
     } on ApiIzuzetak catch (greska) {
       if (!mounted) return;
+
       setState(() {
         _greska = switch (greska.greska.kod) {
           'pogresna_aplikacija' => 'Backoffice je namenjen osoblju.',
@@ -130,26 +152,30 @@ class _BackofficeSesijaState extends State<_BackofficeSesija> {
       if (!mounted) return;
       setState(() => _greska = 'Prijava nije mogla da se sačuva.');
     } finally {
-      if (mounted) {
-        setState(() => _prijavaUToku = false);
-      }
+      if (mounted) setState(() => _prijavaUToku = false);
     }
   }
 
   Future<void> _odjaviSe() async {
+    if (_sesija == null || _odjavaUToku) return;
+
     final token = _sesija?.token;
-    if (token == null) return;
+    setState(() => _odjavaUToku = true);
 
     try {
       await _api.odjaviSe(token: token);
       await _skladiste.obrisi();
+
       if (!mounted) return;
       setState(() => _sesija = null);
     } on Exception {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Odjava nije uspela. Pokušaj ponovo.')),
       );
+    } finally {
+      if (mounted) setState(() => _odjavaUToku = false);
     }
   }
 
@@ -181,6 +207,7 @@ class _BackofficeSesijaState extends State<_BackofficeSesija> {
     if (_obnovaUToku) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+
     if (_sesija != null) {
       return RepositoryProvider<ZakupRepository>.value(
         value: _repository,
@@ -220,12 +247,14 @@ class _BackofficeSesijaState extends State<_BackofficeSesija> {
                 const SizedBox(height: 24),
                 TextField(
                   controller: _email,
+                  enabled: !_prijavaUToku,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(labelText: 'Email'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _lozinka,
+                  enabled: !_prijavaUToku,
                   obscureText: true,
                   decoration: const InputDecoration(labelText: 'Lozinka'),
                   onSubmitted: (_) => _prijaviSe(),

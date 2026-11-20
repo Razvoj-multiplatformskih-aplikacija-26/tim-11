@@ -11,9 +11,13 @@ final class HttpZakupRepository implements StranicniZakupRepository {
     this.velicinaStranice,
   });
 
+  final RentApi api;
+  final String? Function() procitajToken;
   final int? velicinaStranice;
+
   int _stranica = 0;
   bool _imaSledecuStranicu = false;
+  bool _simulirajSledecuGresku = false;
 
   @override
   int get stranica => _stranica;
@@ -23,31 +27,35 @@ final class HttpZakupRepository implements StranicniZakupRepository {
 
   @override
   bool izaberiStranicu(int broj) {
-    if (velicinaStranice == null || broj < 0 || broj == _stranica) return false;
+    if (velicinaStranice == null || broj < 0 || broj == _stranica) {
+      return false;
+    }
+
     if (broj > _stranica && (broj != _stranica + 1 || !_imaSledecuStranicu)) {
       return false;
     }
+
     _stranica = broj;
     _imaSledecuStranicu = false;
     return true;
   }
 
-  final RentApi api;
-  final String? Function() procitajToken;
-  bool _simulirajSledecuGresku = false;
-
   @override
   Future<Rezultat<List<Zakup>>> preuzmiSveZakupe() => _izvrsi((token) async {
     final stranicaPoziva = _stranica;
+
     final odgovor = await api.preuzmiZakupe(
       token: token,
       limit: velicinaStranice,
       pomeraj: stranicaPoziva * (velicinaStranice ?? 0),
     );
+
     final zakupi = odgovor.zakupi.map(zakupIzApi).toList();
+
     if (stranicaPoziva == _stranica) {
       _imaSledecuStranicu = odgovor.sledeciPomeraj != null;
     }
+
     return zakupi;
   });
 
@@ -63,7 +71,10 @@ final class HttpZakupRepository implements StranicniZakupRepository {
         razlog: razlog,
       ),
       Placen() => akcijaZakupaZaApi(AkcijaZakupa.plati),
-      Zavrsen() => akcijaZakupaZaApi(AkcijaZakupa.resiSpor),
+      Zavrsen(:final depozitVracen) => AkcijaZakupaZahtev(
+        akcija: 'resi_spor',
+        depozitVracen: depozitVracen,
+      ),
       _ => null,
     };
 
@@ -90,17 +101,21 @@ final class HttpZakupRepository implements StranicniZakupRepository {
     AkcijaZakupaZahtev zahtev,
   ) => _izvrsi((token) async {
     final dto = await api.izvrsiAkciju(id.value, zahtev, token: token);
+
     return zakupIzApi(dto);
   });
 
-  Future<Rezultat<T>> _izvrsi<T>(Future<T> Function(String token) poziv) async {
+  Future<Rezultat<T>> _izvrsi<T>(
+    Future<T> Function(String? token) poziv,
+  ) async {
     if (_simulirajSledecuGresku) {
       _simulirajSledecuGresku = false;
       return const Neuspeh(ServerskaGreska('server_nedostupan'));
     }
 
     final token = procitajToken();
-    if (token == null) {
+
+    if (token == null && !api.sesijaUKolacicu) {
       return const Neuspeh(ServerskaGreska('potrebna_prijava'));
     }
 

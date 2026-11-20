@@ -22,10 +22,14 @@ final class BezbednoSkladisteSesije implements SkladisteSesije {
 
     try {
       final json = jsonDecode(sacuvano);
+
       if (json is Map<String, Object?>) {
         final sesija = PrijavaOdgovor.fromJson(json);
         final isticeU = DateTime.tryParse(sesija.isticeU);
-        if (isticeU != null && isticeU.isAfter(DateTime.now())) {
+
+        if (sesija.token != null &&
+            isticeU != null &&
+            isticeU.isAfter(DateTime.now())) {
           return sesija;
         }
       }
@@ -40,8 +44,13 @@ final class BezbednoSkladisteSesije implements SkladisteSesije {
   }
 
   @override
-  Future<void> sacuvaj(PrijavaOdgovor sesija) =>
-      _storage.write(key: kljuc, value: jsonEncode(sesija.toJson()));
+  Future<void> sacuvaj(PrijavaOdgovor sesija) async {
+    if (sesija.token == null) {
+      throw ArgumentError('Sesija nema token za uređaj.');
+    }
+
+    await _storage.write(key: kljuc, value: jsonEncode(sesija.toJson()));
+  }
 
   @override
   Future<void> obrisi() => _storage.delete(key: kljuc);

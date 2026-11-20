@@ -1,45 +1,55 @@
-import 'package:api_client/api_client.dart';
 import 'package:domain/domain.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:mobile/data/katalog_repository.dart';
 import 'package:mobile/screens/zahtev_forma_screen.dart';
 
 void main() {
   testWidgets('Forma traži datume pre slanja zahteva', (tester) async {
-    final api = RentApi(
-      adresaServera: Uri.parse('http://localhost:8080'),
-      klijent: MockClient((zahtev) async {
-        expect(zahtev.method, 'GET');
-        expect(zahtev.url.path, '/predmeti/p-1/zauzeti-periodi');
-        return http.Response('{"periodi":[]}', 200);
-      }),
-    );
-    addTearDown(api.zatvori);
+    final zahtevi = _ProbniZahtevi();
 
     await tester.pumpWidget(
       MultiRepositoryProvider(
         providers: [
-          RepositoryProvider<RentApi>.value(value: api),
           RepositoryProvider<KatalogRepository>.value(
             value: const _ProbniKatalog(),
           ),
+          RepositoryProvider<NoviZakupRepository>.value(value: zahtevi),
         ],
         child: const MaterialApp(
           home: ZahtevFormaScreen(predmetId: PredmetId('p-1')),
         ),
       ),
     );
+
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.text('Pošalji zahtev'));
     await tester.tap(find.text('Pošalji zahtev'));
     await tester.pump();
 
     expect(find.text('Izaberi datume zakupa.'), findsOneWidget);
+    expect(zahtevi.brojSlanja, 0);
   });
+}
+
+final class _ProbniZahtevi implements NoviZakupRepository {
+  int brojSlanja = 0;
+
+  @override
+  Future<Rezultat<List<PeriodZakupa>>> preuzmiZauzetePeriode(
+    PredmetId predmetId,
+  ) async => const Uspeh<List<PeriodZakupa>>([]);
+
+  @override
+  Future<Rezultat<ZakupId>> posaljiZahtev({
+    required PredmetId predmetId,
+    required PeriodZakupa period,
+  }) async {
+    brojSlanja++;
+    return const Uspeh<ZakupId>(ZakupId('test-zakup'));
+  }
 }
 
 final class _ProbniKatalog implements KatalogRepository {

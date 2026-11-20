@@ -14,17 +14,21 @@ UnosZakupa noviZakupIzApi(NoviZakupZahtev zahtev) => (
 );
 
 NoviZakupZahtev noviZakupZaApi(UnosZakupa unos) => NoviZakupZahtev(
-  predmetId: unos.predmetId.toString(),
+  predmetId: unos.predmetId.value,
   datumOd: _upisiDatum(unos.datumOd),
   datumDo: _upisiDatum(unos.datumDo),
 );
 
 DateTime _procitajDatum(String tekst) {
   if (!RegExp(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$').hasMatch(tekst)) {
-    throw FormatException('Očekivan je datum u formatu YYYY-MM-DD.', tekst);
+    throw FormatException(
+      'Očekivan je datum u formatu YYYY-MM-DD.',
+      tekst,
+    );
   }
 
   final datum = DateTime.tryParse(tekst);
+
   if (datum == null || _upisiDatum(datum) != tekst) {
     throw FormatException('Datum ne postoji.', tekst);
   }
@@ -36,6 +40,7 @@ String _upisiDatum(DateTime datum) {
   final godina = datum.year.toString().padLeft(4, '0');
   final mesec = datum.month.toString().padLeft(2, '0');
   final dan = datum.day.toString().padLeft(2, '0');
+
   return '$godina-$mesec-$dan';
 }
 
@@ -62,6 +67,7 @@ String _upisiDatum(DateTime datum) {
   ),
   _ => throw ArgumentError.value(greska, 'greska'),
 };
+
 PredmetDto predmetZaApi(Predmet predmet) => PredmetDto(
   id: predmet.id.value,
   naziv: predmet.naziv,
@@ -90,7 +96,12 @@ StatusZakupaDto statusZaApi(StatusZakupa status) => switch (status) {
   Placen() => const StatusZakupaDto(status: 'placen'),
   Preuzet() => const StatusZakupaDto(status: 'preuzet'),
   Vracen() => const StatusZakupaDto(status: 'vracen'),
-  Zavrsen() => const StatusZakupaDto(status: 'zavrsen'),
+  Zavrsen(:final depozitVracen) => StatusZakupaDto(
+    status: 'zavrsen',
+    podaci: {
+      'depozitVracen': ?depozitVracen,
+    },
+  ),
   Odbijen(:final razlog) => StatusZakupaDto(
     status: 'odbijen',
     podaci: {'razlog': razlog},
@@ -114,14 +125,23 @@ StatusZakupa statusIzApi(StatusZakupaDto dto) => switch (dto.status) {
   'placen' => const Placen(),
   'preuzet' => const Preuzet(),
   'vracen' => const Vracen(),
-  'zavrsen' => const Zavrsen(),
-  'odbijen' => Odbijen(razlog: dto.podaci['razlog'] as String),
+  'zavrsen' => Zavrsen(
+    depozitVracen: dto.podaci['depozitVracen'] as bool?,
+  ),
+  'odbijen' => Odbijen(
+    razlog: dto.podaci['razlog'] as String,
+  ),
   'otkazan' => Otkazan(
     otkazanoU: DateTime.parse(dto.podaci['otkazanoU'] as String),
     besplatno: dto.podaci['besplatno'] as bool,
   ),
-  'sporan' => Sporan(opis: dto.podaci['opis'] as String),
-  _ => throw FormatException('Nepoznat status zakupa.', dto.status),
+  'sporan' => Sporan(
+    opis: dto.podaci['opis'] as String,
+  ),
+  _ => throw FormatException(
+    'Nepoznat status zakupa.',
+    dto.status,
+  ),
 };
 
 ZakupDto zakupZaApi(Zakup zakup) => ZakupDto(
@@ -131,7 +151,9 @@ ZakupDto zakupZaApi(Zakup zakup) => ZakupDto(
   datumDo: _upisiDatum(zakup.datumDo),
   status: statusZaApi(zakup.status),
   oznakaZakupca: zakup.oznakaZakupca,
-  istorija: [for (final korak in zakup.istorija) statusZaApi(korak)],
+  istorija: [
+    for (final korak in zakup.istorija) statusZaApi(korak),
+  ],
 );
 
 Zakup zakupIzApi(ZakupDto dto) => Zakup(
@@ -143,7 +165,9 @@ Zakup zakupIzApi(ZakupDto dto) => Zakup(
   ),
   status: statusIzApi(dto.status),
   oznakaZakupca: dto.oznakaZakupca,
-  istorija: [for (final korak in dto.istorija) statusIzApi(korak)],
+  istorija: [
+    for (final korak in dto.istorija) statusIzApi(korak),
+  ],
 );
 
 DomenskaGreska greskaIzApi(ApiGreska greska) => switch (greska.kod) {

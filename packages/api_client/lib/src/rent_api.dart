@@ -4,6 +4,10 @@ import 'dart:convert';
 import 'package:api_contract/api_contract.dart';
 import 'package:http/http.dart' as http;
 
+import 'platform_client.dart'
+    if (dart.library.js_interop) 'platform_client_web.dart'
+    as platform;
+
 final class ApiIzuzetak implements Exception {
   const ApiIzuzetak(this.greska, {this.httpStatus});
 
@@ -16,18 +20,29 @@ final class RentApi {
     required this.adresaServera,
     this.rok = const Duration(seconds: 8),
     http.Client? klijent,
-  }) : _klijent = klijent ?? http.Client();
+  }) : _klijent = klijent ?? platform.napraviHttpKlijent();
 
   final Uri adresaServera;
   final Duration rok;
   final http.Client _klijent;
 
+  bool get sesijaUKolacicu => platform.sesijaUKolacicu;
+
   Future<PrijavaOdgovor> prijaviSe(PrijavaZahtev zahtev) async {
-    final json = await _posalji('POST', putanjaPrijave, telo: zahtev.toJson());
+    final telo = zahtev.toJson()..['cookie'] = platform.sesijaUKolacicu;
+
+    final json = await _posalji('POST', putanjaPrijave, telo: telo);
+
     return _procitajOdgovor(json, PrijavaOdgovor.fromJson);
   }
 
-  Future<void> odjaviSe({required String token}) async {
+  Future<PrijavaOdgovor> trenutnaSesija({String? token}) async {
+    final json = await _posalji('GET', putanjaTrenutneSesije, token: token);
+
+    return _procitajOdgovor(json, PrijavaOdgovor.fromJson);
+  }
+
+  Future<void> odjaviSe({String? token}) async {
     await _posalji('POST', putanjaOdjave, token: token);
   }
 
@@ -36,8 +51,14 @@ final class RentApi {
     return _procitajOdgovor(json, ListaPredmetaOdgovor.fromJson);
   }
 
+  Future<ZauzetiPeriodiOdgovor> preuzmiZauzetePeriode(String predmetId) async {
+    final json = await _posalji('GET', zauzetiPeriodiPutanja(predmetId));
+
+    return _procitajOdgovor(json, ZauzetiPeriodiOdgovor.fromJson);
+  }
+
   Future<ListaZakupaOdgovor> preuzmiZakupe({
-    required String token,
+    String? token,
     int? limit,
     int pomeraj = 0,
   }) async {
@@ -54,7 +75,7 @@ final class RentApi {
 
   Future<NoviZakupOdgovor> napraviZakup(
     NoviZakupZahtev zahtev, {
-    required String token,
+    String? token,
   }) async {
     final json = await _posalji(
       'POST',
@@ -62,13 +83,14 @@ final class RentApi {
       token: token,
       telo: zahtev.toJson(),
     );
+
     return _procitajOdgovor(json, NoviZakupOdgovor.fromJson);
   }
 
   Future<ZakupDto> izvrsiAkciju(
     String zakupId,
     AkcijaZakupaZahtev zahtev, {
-    required String token,
+    String? token,
   }) async {
     final json = await _posalji(
       'POST',
@@ -76,6 +98,7 @@ final class RentApi {
       token: token,
       telo: zahtev.toJson(),
     );
+
     return _procitajOdgovor(json, ZakupDto.fromJson);
   }
 
@@ -90,15 +113,17 @@ final class RentApi {
     final zahtev = http.Request(metod, adresaServera.resolve(putanja))
       ..headers['Accept'] = 'application/json';
 
-    if (token != null) {
+    if (!platform.sesijaUKolacicu && token != null) {
       zahtev.headers['Authorization'] = 'Bearer $token';
     }
+
     if (telo != null) {
       zahtev.headers['Content-Type'] = 'application/json; charset=utf-8';
       zahtev.body = jsonEncode(telo);
     }
 
     final http.Response odgovor;
+
     try {
       odgovor = await _izvrsi(zahtev).timeout(rok);
     } on TimeoutException {
@@ -108,6 +133,7 @@ final class RentApi {
     }
 
     final status = odgovor.statusCode;
+
     if (status < 200 || status >= 300) {
       throw ApiIzuzetak(_procitajGresku(odgovor), httpStatus: status);
     }
@@ -128,18 +154,15 @@ final class RentApi {
     final tok = await _klijent.send(zahtev);
     return http.Response.fromStream(tok);
   }
-
-  Future<ZauzetiPeriodiOdgovor> preuzmiZauzetePeriode(String predmetId) async {
-    final json = await _posalji('GET', zauzetiPeriodiPutanja(predmetId));
-    return _procitajOdgovor(json, ZauzetiPeriodiOdgovor.fromJson);
-  }
 }
 
 Map<String, Object?> _dekodirajObjekat(http.Response odgovor) {
   final json = jsonDecode(utf8.decode(odgovor.bodyBytes));
+
   if (json is! Map<String, Object?>) {
     throw const FormatException('Očekivan je JSON objekat.');
   }
+
   return json;
 }
 

@@ -1,10 +1,9 @@
-import 'package:api_mapping/api_mapping.dart';
-import 'package:domain/domain.dart';
-import 'package:postgres/postgres.dart';
-
 import 'dart:convert';
 
 import 'package:api_contract/api_contract.dart';
+import 'package:api_mapping/api_mapping.dart';
+import 'package:domain/domain.dart';
+import 'package:postgres/postgres.dart';
 
 import 'placanje_port.dart';
 
@@ -13,9 +12,8 @@ enum ProblemAkcijeZakupa { nijePronadjen, zabranjeno, placanjeOdbijeno }
 final class ZakupStore {
   const ZakupStore(this._baza, {this.placanje = const DemoPlacanje()});
 
-  final PlacanjePort placanje;
-
   final Connection _baza;
+  final PlacanjePort placanje;
 
   Future<List<Zakup>> preuzmiZakupe({
     required String? zakupacId,
@@ -83,7 +81,6 @@ final class ZakupStore {
         zakupIzApi(
           ZakupDto(
             id: red[0] as String,
-            oznakaZakupca: red[14] as String?,
             datumOd: red[1] as String,
             datumDo: red[2] as String,
             status: StatusZakupaDto(
@@ -104,6 +101,7 @@ final class ZakupStore {
               opis: red[12] as String,
               vlasnik: red[13] as String,
             ),
+            oznakaZakupca: red[14] as String?,
           ),
         ),
     ];
@@ -116,6 +114,7 @@ final class ZakupStore {
     required AkcijaZakupa akcija,
     required DateTime sada,
     String? razlog,
+    bool? depozitVracen,
   }) => _baza.runTx((transakcija) async {
     final vlasnici = await transakcija.execute(
       Sql.named('''
@@ -131,11 +130,10 @@ final class ZakupStore {
       throw ProblemAkcijeZakupa.nijePronadjen;
     }
 
-    final jeSvojZakup = vlasnici.single[0] == korisnikId;
     if (!imaPravoNaAkciju(
       uloga: uloga,
       akcija: akcija,
-      jeSvojZakup: jeSvojZakup,
+      jeSvojZakup: vlasnici.single[0] == korisnikId,
     )) {
       throw ProblemAkcijeZakupa.zabranjeno;
     }
@@ -154,7 +152,7 @@ final class ZakupStore {
       AkcijaZakupa.odbij => promeniStatus(zakup, Odbijen(razlog: razlog!)),
       AkcijaZakupa.resiSpor =>
         zakup.status is Sporan
-            ? promeniStatus(zakup, const Zavrsen())
+            ? promeniStatus(zakup, Zavrsen(depozitVracen: depozitVracen))
             : Neuspeh<Zakup>(
                 NedozvoljenPrelaz(od: zakup.status, ka: const Zavrsen()),
               ),
@@ -168,10 +166,14 @@ final class ZakupStore {
         zakupId: zakup.id,
         iznosEvra: zakup.ukupnaCena + zakup.predmet.depozit,
       );
-      if (!odobreno) throw ProblemAkcijeZakupa.placanjeOdbijeno;
+
+      if (!odobreno) {
+        throw ProblemAkcijeZakupa.placanjeOdbijeno;
+      }
     }
 
     final dto = zakupZaApi(azuriran);
+
     await transakcija.execute(
       Sql.named('''
         UPDATE zakupi
@@ -193,7 +195,6 @@ final class ZakupStore {
     return rezultat;
   });
 
-  // null znači da traženi predmet ne postoji.
   Future<Rezultat<ZakupId>?> napraviZakup({
     required UnosZakupa unos,
     required String zakupacId,
@@ -213,6 +214,7 @@ final class ZakupStore {
           greska.constraintName == 'zakupi_bez_preklapanja') {
         return const Neuspeh<ZakupId>(TerminZauzet());
       }
+
       rethrow;
     }
   }
@@ -223,7 +225,7 @@ final class ZakupStore {
     required String zakupacId,
     required DateTime danas,
   }) async {
-    final predmetId = unos.predmetId.toString();
+    final predmetId = unos.predmetId.value;
 
     final predmeti = await transakcija.execute(
       Sql.named('''
@@ -238,6 +240,7 @@ final class ZakupStore {
     if (predmeti.isEmpty) return null;
 
     final red = predmeti.single;
+
     final predmet = Predmet(
       id: unos.predmetId,
       naziv: red[0] as String,
@@ -287,6 +290,7 @@ final class ZakupStore {
     );
 
     final period = provera.vrednostIliNull;
+
     if (period == null) {
       return Neuspeh<ZakupId>(provera.greskaIliNull!);
     }

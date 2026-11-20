@@ -31,7 +31,13 @@ class _RentALuxuryAppState extends State<RentALuxuryApp> {
   late final KatalogRepository _katalog = HttpKatalogRepository(_api);
   late final MobilnaSesija _sesija = MobilnaSesija(_api);
   late final Future<void> _obnovaSesije = _sesija.obnovi();
+
   late final ZakupRepository _zakupRepository = HttpZakupRepository(
+    api: _api,
+    procitajToken: () => _sesija.token,
+  );
+
+  late final NoviZakupRepository _noviZakupRepository = HttpNoviZakupRepository(
     api: _api,
     procitajToken: () => _sesija.token,
   );
@@ -66,6 +72,9 @@ class _RentALuxuryAppState extends State<RentALuxuryApp> {
         RepositoryProvider<MobilnaSesija>.value(value: _sesija),
         RepositoryProvider<RentApi>.value(value: _api),
         RepositoryProvider<ZakupRepository>.value(value: _zakupRepository),
+        RepositoryProvider<NoviZakupRepository>.value(
+          value: _noviZakupRepository,
+        ),
       ],
       child: BlocProvider(
         create: (_) => ZakupiBloc(zakupRepository: _zakupRepository),
